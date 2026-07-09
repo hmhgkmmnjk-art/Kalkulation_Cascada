@@ -447,7 +447,7 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
       <button class="btn btn-outline btn-sm" id="btnMail" style="flex:1;">✉️ Per E-Mail</button>
       <button class="btn btn-outline btn-sm" id="btnSaveArchive" style="flex:1;">💾 Archivieren</button>
     </div>
-    <div id="offerPreview"><div class="empty-state">Noch kein Angebot erstellt.<br>Wechsle zum Tab „Angebot", um eines zu erstellen.</div></div>
+    <div id="offerPreview"><div class="empty-state">Noch kein Angebot erstellt.<br>Wechsle zum Tab „Angebot“, um eines zu erstellen.</div></div>
   </section>
 
 </main>
@@ -1148,7 +1148,7 @@ function validateChildCount(){
   if(!room){ warnEl.innerHTML=""; return true; }
   var total = totalChildren();
   if(total > 0 && room.maxChildren === 0){
-    warnEl.innerHTML = '<div class="warn">„'+(room.name.de)+'" bietet keine Kinderbelegung. Bitte anderes Zimmer wählen oder Kinderanzahl auf 0 setzen.</div>';
+    warnEl.innerHTML = '<div class="warn">„'+(room.name.de)+'“ bietet keine Kinderbelegung. Bitte anderes Zimmer wählen oder Kinderanzahl auf 0 setzen.</div>';
     return false;
   }
   if(total > room.maxChildren){
@@ -1316,7 +1316,7 @@ document.getElementById("btnCalcOffer").addEventListener("click", function(){
 function renderPreview(offer){
   var wrap = document.getElementById("offerPreview");
   if(!offer){
-    wrap.innerHTML = '<div class="empty-state">Noch kein Angebot erstellt.<br>Wechsle zum Tab „Angebot", um eines zu erstellen.</div>';
+    wrap.innerHTML = '<div class="empty-state">Noch kein Angebot erstellt.<br>Wechsle zum Tab „Angebot“, um eines zu erstellen.</div>';
     return;
   }
   var lang = offer.language;
@@ -1425,7 +1425,7 @@ document.getElementById("btnMail").addEventListener("click", function(){
     UI_L10N[lang].room+": "+(room?room.name[lang]:"")+"\n"+
     UI_L10N[lang].rate+": "+(rate?rate.name[lang]:"")+"\n"+
     UI_L10N[lang].grandTotal+": "+fmtMoney(offer.grandTotal)+"\n\n"+
-    "Hinweis: Bitte das PDF zuvor über „Drucken / PDF" erzeugen (im Druckdialog „In Dateien sichern" / „Als PDF sichern" wählen) und dieser E-Mail manuell anhängen.";
+    "Hinweis: Bitte das PDF zuvor über „Drucken / PDF“ erzeugen (im Druckdialog „In Dateien sichern“ / „Als PDF sichern“ wählen) und dieser E-Mail manuell anhängen.";
   var mailto = "mailto:?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
   window.location.href = mailto;
 });
