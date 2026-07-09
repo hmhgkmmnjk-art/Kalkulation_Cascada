@@ -163,6 +163,7 @@ table.matrix th,table.matrix td{border:1px solid var(--border);padding:5px;text-
 table.matrix th{background:var(--sand);color:var(--navy);font-size:11px;}
 table.matrix td.rowhead{text-align:left;font-weight:600;color:var(--navy);background:#fbfaf6;font-size:11.5px;}
 table.matrix input{padding:6px 4px;font-size:13px;text-align:center;min-width:56px;}
+table.matrix input[readonly]{background:#efece4;color:var(--muted);font-style:italic;}
 .matrix-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
 
 .namegrid{display:grid;grid-template-columns:70px 1fr 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;}
@@ -585,10 +586,10 @@ function defaultData(){
       { id:"room7", maxChildren:0, name:{de:"Doppelzimmer mit Meerblick", en:"Double Room with Sea View", hr:"Dvokrevetna soba s pogledom na more"}, amenities:{de:"",en:"",hr:""} }
     ],
     rates:[
-      { id:"rate1", key:"rate1", name:{de:"Frühstück – Flex", en:"Breakfast – Flex", hr:"Doručak – Fleksibilno"}, halfBoard:false },
-      { id:"rate2", key:"rate2", name:{de:"Frühstück – Nicht stornierbar", en:"Breakfast – Non-refundable", hr:"Doručak – Nepovratno"}, halfBoard:false },
-      { id:"rate3", key:"rate3", name:{de:"Halbpension – Flex", en:"Half Board – Flex", hr:"Polupansion – Fleksibilno"}, halfBoard:true },
-      { id:"rate4", key:"rate4", name:{de:"Halbpension – Nicht stornierbar", en:"Half Board – Non-refundable", hr:"Polupansion – Nepovratno"}, halfBoard:true }
+      { id:"rate1", key:"rate1", name:{de:"Frühstück – Flex", en:"Breakfast – Flex", hr:"Doručak – Fleksibilno"}, halfBoard:false, derivedFrom:"", derivedPercent:10 },
+      { id:"rate2", key:"rate2", name:{de:"Frühstück – Nicht stornierbar", en:"Breakfast – Non-refundable", hr:"Doručak – Nepovratno"}, halfBoard:false, derivedFrom:"", derivedPercent:10 },
+      { id:"rate3", key:"rate3", name:{de:"Halbpension – Flex", en:"Half Board – Flex", hr:"Polupansion – Fleksibilno"}, halfBoard:true, derivedFrom:"", derivedPercent:10 },
+      { id:"rate4", key:"rate4", name:{de:"Halbpension – Nicht stornierbar", en:"Half Board – Non-refundable", hr:"Polupansion – Nepovratno"}, halfBoard:true, derivedFrom:"", derivedPercent:10 }
     ],
     childCategories:[
       { id:"child1", name:{de:"Kleinkinder",en:"Infants",hr:"Mala djeca"}, ageFrom:0, ageTo:7, priceType:"fixed", priceValue:0, kurtaxeCategory:"child12" },
@@ -648,6 +649,11 @@ function deepMerge(def, saved){
     var out = {};
     Object.keys(def).forEach(function(k){
       out[k] = (k in saved) ? deepMerge(def[k], saved[k]) : def[k];
+    });
+    // keep saved keys the defaults don't know about — roomPrices and cityTax
+    // are empty objects in the defaults, their content only exists in saved data
+    Object.keys(saved).forEach(function(k){
+      if(!(k in out) && saved[k]!==undefined) out[k] = saved[k];
     });
     return out;
   }
@@ -717,6 +723,20 @@ function formatDisplayDate(dateStr, lang){
   return dd+"."+mm+"."+yyyy;
 }
 function findById(arr,id){ return arr.find(function(x){return x.id===id;}); }
+
+// resolves the price of a rate; derived rates are calculated from their
+// base rate minus the configured percentage (depth-limited against cycles)
+function effectiveRoomPrice(seasonId, roomId, rateId, _depth){
+  _depth = _depth || 0;
+  var prices = (STATE.data.roomPrices[seasonId]||{})[roomId]||{};
+  var rate = findById(STATE.data.rates, rateId);
+  if(rate && rate.derivedFrom && rate.derivedFrom!==rateId && _depth<4){
+    var pct = parseFloat(rate.derivedPercent)||0;
+    var base = effectiveRoomPrice(seasonId, roomId, rate.derivedFrom, _depth+1);
+    return Math.round(base*(1-pct/100)*100)/100;
+  }
+  return prices[rateId]||0;
+}
 
 function getSeasonForDate(dateStr){
   var md = toMD(dateStr);
@@ -878,6 +898,57 @@ function renderRateFields(){
     inp.addEventListener("input", function(){ rate.name[activeRateLang] = this.value; saveState(); refreshOfferSelectors(); renderTextFields(); });
     wrap.appendChild(lab);
     wrap.appendChild(inp);
+
+    // price mode: manual or derived from another (manual) rate minus X %
+    var row = document.createElement("div");
+    row.className = "row2";
+    var selDiv = document.createElement("div");
+    var selLab = document.createElement("label"); selLab.textContent = "Preisberechnung";
+    var sel = document.createElement("select");
+    var optManual = document.createElement("option");
+    optManual.value = ""; optManual.textContent = "Manuell eingeben";
+    sel.appendChild(optManual);
+    STATE.data.rates.forEach(function(other){
+      if(other.id===rate.id) return;
+      if(other.derivedFrom) return; // only manual rates can serve as base (prevents cycles)
+      var o = document.createElement("option");
+      o.value = other.id;
+      o.textContent = "Abgeleitet von „"+(other.name.de||"?")+"“";
+      sel.appendChild(o);
+    });
+    sel.value = rate.derivedFrom || "";
+    selDiv.appendChild(selLab); selDiv.appendChild(sel);
+
+    var pctDiv = document.createElement("div");
+    var pctLab = document.createElement("label"); pctLab.textContent = "Abschlag in %";
+    var pct = document.createElement("input");
+    pct.type = "number"; pct.min = "0"; pct.max = "100"; pct.step = "0.1";
+    pct.value = rate.derivedPercent!=null ? rate.derivedPercent : 10;
+    pctDiv.appendChild(pctLab); pctDiv.appendChild(pct);
+    pctDiv.style.display = rate.derivedFrom ? "block" : "none";
+
+    sel.addEventListener("change", function(){
+      rate.derivedFrom = this.value;
+      pctDiv.style.display = this.value ? "block" : "none";
+      saveState();
+      renderRateFields();
+      renderRoomPriceFields();
+    });
+    pct.addEventListener("input", function(){
+      rate.derivedPercent = parseFloat(this.value)||0;
+      saveState();
+      renderRoomPriceFields();
+    });
+
+    row.appendChild(selDiv); row.appendChild(pctDiv);
+    wrap.appendChild(row);
+    if(rate.derivedFrom){
+      var note = document.createElement("p");
+      note.className = "hint";
+      var baseRate = findById(STATE.data.rates, rate.derivedFrom);
+      note.textContent = "Der Preis dieser Rate wird automatisch berechnet: „"+(baseRate?baseRate.name.de:"?")+"“ minus "+(parseFloat(rate.derivedPercent)||0)+" %. In der Preistabelle ist diese Spalte gesperrt.";
+      wrap.appendChild(note);
+    }
   });
 }
 
@@ -964,9 +1035,9 @@ function renderSeasonFields(){
     nameInp.value = season.name;
     fromInp.value = "2000-"+season.from;
     toInp.value = "2000-"+season.to;
-    nameInp.addEventListener("input", function(){ season.name=this.value; saveState(); refreshOfferSelectors(); });
-    fromInp.addEventListener("input", function(){ season.from=this.value.slice(5); saveState(); });
-    toInp.addEventListener("input", function(){ season.to=this.value.slice(5); saveState(); });
+    nameInp.addEventListener("input", function(){ season.name=this.value; saveState(); refreshOfferSelectors(); renderRoomPriceFields(); });
+    fromInp.addEventListener("input", function(){ season.from=this.value.slice(5); saveState(); renderRoomPriceFields(); });
+    toInp.addEventListener("input", function(){ season.to=this.value.slice(5); saveState(); renderRoomPriceFields(); });
     wrap.appendChild(row);
   });
 }
@@ -988,8 +1059,8 @@ function renderTaxPeriodFields(){
     fromInp.value = "2000-"+p.from;
     toInp.value = "2000-"+p.to;
     nameInp.addEventListener("input", function(){ p.name=this.value; saveState(); renderCityTaxFields(); });
-    fromInp.addEventListener("input", function(){ p.from=this.value.slice(5); saveState(); });
-    toInp.addEventListener("input", function(){ p.to=this.value.slice(5); saveState(); });
+    fromInp.addEventListener("input", function(){ p.from=this.value.slice(5); saveState(); renderCityTaxFields(); });
+    toInp.addEventListener("input", function(){ p.to=this.value.slice(5); saveState(); renderCityTaxFields(); });
     wrap.appendChild(row);
   });
 }
@@ -1008,8 +1079,9 @@ function renderRoomPriceFields(){
     var thead = "<tr><th>Zimmer</th>" + STATE.data.rates.map(function(r){return "<th>"+(r.name.de||"")+"</th>";}).join("") + "</tr>";
     var rows = STATE.data.rooms.map(function(room){
       var cells = STATE.data.rates.map(function(rate){
-        var val = STATE.data.roomPrices[season.id][room.id][rate.id];
-        return '<td><input type="number" min="0" step="0.01" data-season="'+season.id+'" data-room="'+room.id+'" data-rate="'+rate.id+'" value="'+val+'"></td>';
+        var derived = !!(rate.derivedFrom && rate.derivedFrom!==rate.id);
+        var val = derived ? effectiveRoomPrice(season.id, room.id, rate.id) : STATE.data.roomPrices[season.id][room.id][rate.id];
+        return '<td><input type="number" min="0" step="0.01" data-season="'+season.id+'" data-room="'+room.id+'" data-rate="'+rate.id+'"'+(derived?' data-derived="1" readonly tabindex="-1"':'')+' value="'+val+'"></td>';
       }).join("");
       return '<tr><td class="rowhead">'+(room.name.de||"")+'</td>'+cells+'</tr>';
     }).join("");
@@ -1017,11 +1089,15 @@ function renderRoomPriceFields(){
     scroll.appendChild(table);
     wrap.appendChild(scroll);
   });
-  wrap.querySelectorAll("input[data-season]").forEach(function(inp){
+  wrap.querySelectorAll("input[data-season]:not([data-derived])").forEach(function(inp){
     inp.addEventListener("input", function(){
       var s=this.dataset.season, r=this.dataset.room, ra=this.dataset.rate;
       STATE.data.roomPrices[s][r][ra] = parseFloat(this.value)||0;
       saveState();
+      // update auto-calculated cells in the same row live
+      wrap.querySelectorAll('input[data-derived="1"][data-season="'+s+'"][data-room="'+r+'"]').forEach(function(d){
+        d.value = effectiveRoomPrice(s, r, d.dataset.rate);
+      });
     });
   });
 }
@@ -1259,7 +1335,7 @@ function computeOffer(){
     var taxPeriod = getTaxPeriodForDate(date);
     var roomPrice = 0;
     if(season){
-      roomPrice = STATE.data.roomPrices[season.id][room.id][rate.id] || 0;
+      roomPrice = effectiveRoomPrice(season.id, room.id, rate.id);
     } else { missingSeason = true; }
 
     var childrenPrice = 0;
