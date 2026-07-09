@@ -625,9 +625,9 @@ function defaultData(){
       { id:"child3", name:{de:"Jugendliche",en:"Teenagers",hr:"Tinejdžeri"}, ageFrom:16, ageTo:17, priceType:"percent", priceValue:50, kurtaxeCategory:"child1217" }
     ],
     seasons:[
-      { id:"season1", name:"Vorsaison", from:"05-01", to:"06-30" },
-      { id:"season2", name:"Hauptsaison", from:"07-01", to:"08-31" },
-      { id:"season3", name:"Nachsaison", from:"09-01", to:"10-15" }
+      { id:"season1", name:"Vorsaison", from:"01-01", to:"06-27" },
+      { id:"season2", name:"Hauptsaison", from:"06-28", to:"08-29" },
+      { id:"season3", name:"Nachsaison", from:"08-30", to:"12-31" }
     ],
     taxPeriods:[
       { id:"tax1", name:"Zeitraum 1", from:"04-01", to:"06-30" },
@@ -697,6 +697,25 @@ function deepMerge(def, saved){
   return (saved===undefined || saved===null) ? def : saved;
 }
 
+// lifts seasons that still carry the pre-2026 default ranges to the current
+// defaults; manually customized seasons are left untouched
+function migrateSeasonDates(data){
+  var oldDefaults = {
+    season1:{from:"05-01", to:"06-30"},
+    season2:{from:"07-01", to:"08-31"},
+    season3:{from:"09-01", to:"10-15"}
+  };
+  var newDefaults = defaultData().seasons;
+  (data.seasons||[]).forEach(function(s){
+    var old = oldDefaults[s.id];
+    var cur = newDefaults.find(function(n){ return n.id===s.id; });
+    if(old && cur && s.from===old.from && s.to===old.to){
+      s.from = cur.from;
+      s.to = cur.to;
+    }
+  });
+}
+
 var STATE = { data: defaultData(), offers: [] };
 var repairNotice = "";
 
@@ -711,6 +730,7 @@ function loadState(){
     var parsed = JSON.parse(raw);
     var def = defaultData();
     var mergedData = deepMerge(def, parsed.data || {});
+    migrateSeasonDates(mergedData);
     ensurePriceSkeleton(mergedData);
     var offers = Array.isArray(parsed.offers) ? parsed.offers : [];
     STATE = { data: mergedData, offers: offers };
