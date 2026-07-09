@@ -249,6 +249,8 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
 
 .field-note{font-size:11px;color:var(--muted);margin-top:2px;}
 .import-input{display:none;}
+#logoPreview{max-height:60px;max-width:180px;object-fit:contain;display:block;margin-bottom:8px;border:1px solid var(--border);border-radius:8px;padding:4px;background:var(--white);}
+.doc-logo img.doc-logo-img{max-height:64px;max-width:200px;object-fit:contain;}
 .center{text-align:center;}
 .mt8{margin-top:8px;}
 .mb0{margin-bottom:0;}
@@ -288,6 +290,16 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
         <input type="email" id="s_hotel_email">
         <label>Internetseite</label>
         <input type="text" id="s_hotel_website">
+        <label>Logo (erscheint im Angebot)</label>
+        <div id="logoRow">
+          <img id="logoPreview" alt="Logo" style="display:none;">
+          <div class="btnrow">
+            <button class="btn btn-outline btn-sm" id="btnLogoUpload">📷 Logo hochladen</button>
+            <button class="btn btn-outline btn-sm" id="btnLogoRemove" style="display:none;">Entfernen</button>
+          </div>
+          <input type="file" accept="image/*" id="logoInput" class="import-input">
+        </div>
+        <p class="hint">PNG oder JPG. Das Bild wird automatisch verkleinert und im Angebotskopf anstelle des „VC“-Zeichens angezeigt.</p>
       </div>
     </details>
 
@@ -368,6 +380,15 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
     </details>
 
     <details class="section">
+      <summary>Zusatzleistungen</summary>
+      <div class="section-body">
+        <p class="hint">Dienstleistungen wie Parkplatz oder Flughafentransfer, die im Angebot optional hinzugefügt werden können.</p>
+        <div id="serviceFields"></div>
+        <button class="btn btn-outline" id="btnAddService">+ Zusatzleistung hinzufügen</button>
+      </div>
+    </details>
+
+    <details class="section">
       <summary>Daten sichern / wiederherstellen</summary>
       <div class="section-body">
         <p class="hint">Exportiere alle Einstellungen und das Angebots-Archiv als JSON-Datei, z.&nbsp;B. zur Sicherung in iCloud Drive.</p>
@@ -430,6 +451,9 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
       </div>
       <div id="o_childStappers"></div>
       <div id="o_childWarn"></div>
+
+      <h3>Zusatzleistungen</h3>
+      <div id="o_services"></div>
 
       <h3>Rabatt (optional)</h3>
       <div class="row2">
@@ -501,7 +525,8 @@ var UI_L10N = {
     grandTotal:"Gesamtpreis", cancellation:"Stornierungsbedingungen", halfBoard:"Halbpension",
     amenities:"Ausstattung", bank:"Bankverbindung", offerNo:"Angebots-Nr.",
     roomLine:"Zimmer", taxLine:"Kurtaxe", perNight:"pro Nacht", perPersonNight:"pro Person/Nacht",
-    discount:"Rabatt", subtotal:"Zwischensumme"
+    discount:"Rabatt", subtotal:"Zwischensumme",
+    persons:"Personen", once:"einmalig"
   },
   en:{
     nights:"nights", offerFor:"Offer for", offerDate:"Offer date", validUntil:"Valid until",
@@ -511,7 +536,8 @@ var UI_L10N = {
     grandTotal:"Total price", cancellation:"Cancellation policy", halfBoard:"Half board",
     amenities:"Amenities", bank:"Bank details", offerNo:"Offer no.",
     roomLine:"Room", taxLine:"City tax", perNight:"per night", perPersonNight:"per person/night",
-    discount:"Discount", subtotal:"Subtotal"
+    discount:"Discount", subtotal:"Subtotal",
+    persons:"persons", once:"one-time"
   },
   hr:{
     nights:"noćenja", offerFor:"Ponuda za", offerDate:"Datum ponude", validUntil:"Vrijedi do",
@@ -521,7 +547,8 @@ var UI_L10N = {
     grandTotal:"Ukupna cijena", cancellation:"Uvjeti otkazivanja", halfBoard:"Polupansion",
     amenities:"Sadržaji", bank:"Bankovni podaci", offerNo:"Broj ponude",
     roomLine:"Soba", taxLine:"Boravišna pristojba", perNight:"po noćenju", perPersonNight:"po osobi/noćenju",
-    discount:"Popust", subtotal:"Međuzbroj"
+    discount:"Popust", subtotal:"Međuzbroj",
+    persons:"osobe", once:"jednokratno"
   }
 };
 
@@ -538,7 +565,8 @@ function defaultData(){
       zipCity:"21327 Podgora",
       phone:"",
       email:"info@villa-cascada.net",
-      website:"www.cascada-podgora.com"
+      website:"www.cascada-podgora.com",
+      logo:""
     },
     bank:{ bankName:"", iban:"", bic:"", holder:"" },
     texts:{
@@ -606,6 +634,10 @@ function defaultData(){
       { id:"tax2", name:"Zeitraum 2", from:"07-01", to:"08-31" },
       { id:"tax3", name:"Zeitraum 3", from:"09-01", to:"10-31" }
     ],
+    services:[
+      { id:"svc1", name:{de:"Parkplatz", en:"Parking space", hr:"Parkirno mjesto"}, price:0, priceType:"perNight", deleted:false },
+      { id:"svc2", name:{de:"Flughafentransfer", en:"Airport transfer", hr:"Prijevoz iz zračne luke"}, price:0, priceType:"once", deleted:false }
+    ],
     roomPrices:{},   // roomPrices[seasonId][roomId][rateId] = number
     cityTax:{}       // cityTax[taxPeriodId] = {adult,child12,child1217}
   };
@@ -639,10 +671,15 @@ function deepMerge(def, saved){
   if(Array.isArray(def)){
     if(!Array.isArray(saved)) return def;
     // merge by id when possible
-    return def.map(function(defItem){
+    var merged = def.map(function(defItem){
       var match = saved.find(function(s){ return s && defItem.id && s.id===defItem.id; });
       return match ? deepMerge(defItem, match) : defItem;
     });
+    // keep user-added items the defaults don't contain (e.g. custom services)
+    saved.forEach(function(s){
+      if(s && s.id && !def.some(function(d){ return d.id===s.id; })) merged.push(s);
+    });
+    return merged;
   }
   if(def && typeof def === "object"){
     if(!saved || typeof saved !== "object" || Array.isArray(saved)) return JSON.parse(JSON.stringify(def));
@@ -813,7 +850,51 @@ function renderHotelBankFields(){
   document.getElementById("s_bank_iban").value = b.iban;
   document.getElementById("s_bank_bic").value = b.bic;
   document.getElementById("s_bank_holder").value = b.holder;
+  updateLogoPreview();
 }
+
+function updateLogoPreview(){
+  var img = document.getElementById("logoPreview");
+  var btnRemove = document.getElementById("btnLogoRemove");
+  var logo = STATE.data.hotel.logo;
+  img.style.display = logo ? "block" : "none";
+  btnRemove.style.display = logo ? "inline-flex" : "none";
+  if(logo) img.src = logo;
+}
+document.getElementById("btnLogoUpload").addEventListener("click", function(){
+  document.getElementById("logoInput").click();
+});
+document.getElementById("btnLogoRemove").addEventListener("click", function(){
+  STATE.data.hotel.logo = "";
+  saveState();
+  updateLogoPreview();
+  renderPreview(lastComputedOffer);
+});
+document.getElementById("logoInput").addEventListener("change", function(e){
+  var file = e.target.files[0];
+  e.target.value = "";
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      // downscale so the data URL stays small enough for localStorage
+      var MAX = 600;
+      var scale = Math.min(1, MAX/Math.max(img.width, img.height));
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width*scale);
+      canvas.height = Math.round(img.height*scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      STATE.data.hotel.logo = canvas.toDataURL("image/png");
+      saveState();
+      updateLogoPreview();
+      renderPreview(lastComputedOffer);
+    };
+    img.onerror = function(){ alert("Bilddatei konnte nicht gelesen werden."); };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 ["s_hotel_name","s_hotel_street","s_hotel_zipcity","s_hotel_phone","s_hotel_email","s_hotel_website"].forEach(function(id){
   document.getElementById(id).addEventListener("input", function(){
     var key = id.replace("s_hotel_","");
@@ -1127,6 +1208,71 @@ function renderCityTaxFields(){
   });
 }
 
+function renderServiceFields(){
+  var wrap = document.getElementById("serviceFields");
+  wrap.innerHTML = "";
+  var list = (STATE.data.services||[]).filter(function(s){ return !s.deleted; });
+  if(!list.length){
+    wrap.innerHTML = '<p class="hint">Keine Zusatzleistungen vorhanden.</p>';
+    return;
+  }
+  list.forEach(function(sv){
+    var box = document.createElement("div");
+    box.style.cssText = "border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:10px;background:#fbfaf6;";
+
+    var nameRow = document.createElement("div");
+    nameRow.className = "row3";
+    LANGS.forEach(function(l){
+      var d = document.createElement("div");
+      var lab = document.createElement("label"); lab.className="first"; lab.textContent = "Name ("+l.toUpperCase()+")";
+      var inp = document.createElement("input"); inp.type="text"; inp.value = sv.name[l]||"";
+      inp.addEventListener("input", function(){ sv.name[l]=this.value; saveState(); renderOfferServices(); });
+      d.appendChild(lab); d.appendChild(inp);
+      nameRow.appendChild(d);
+    });
+    box.appendChild(nameRow);
+
+    var priceRow = document.createElement("div");
+    priceRow.className = "row2";
+    var pDiv = document.createElement("div");
+    var pLab = document.createElement("label"); pLab.textContent = "Preis in €";
+    var pInp = document.createElement("input"); pInp.type="number"; pInp.min="0"; pInp.step="0.01"; pInp.value = sv.price;
+    pInp.addEventListener("input", function(){ sv.price = parseFloat(this.value)||0; saveState(); renderOfferServices(); });
+    pDiv.appendChild(pLab); pDiv.appendChild(pInp);
+    var tDiv = document.createElement("div");
+    var tLab = document.createElement("label"); tLab.textContent = "Abrechnung";
+    var tSel = document.createElement("select");
+    tSel.innerHTML = '<option value="once">Einmalig</option><option value="perNight">Pro Nacht</option>';
+    tSel.value = sv.priceType || "once";
+    tSel.addEventListener("change", function(){ sv.priceType = this.value; saveState(); renderOfferServices(); });
+    tDiv.appendChild(tLab); tDiv.appendChild(tSel);
+    priceRow.appendChild(pDiv); priceRow.appendChild(tDiv);
+    box.appendChild(priceRow);
+
+    var del = document.createElement("button");
+    del.className = "btn btn-outline btn-sm";
+    del.style.marginTop = "10px";
+    del.textContent = "Löschen";
+    del.addEventListener("click", function(){
+      if(!confirm('Zusatzleistung „'+(sv.name.de||"?")+'“ wirklich löschen?')) return;
+      sv.deleted = true;
+      saveState();
+      renderServiceFields();
+      renderOfferServices();
+    });
+    box.appendChild(del);
+
+    wrap.appendChild(box);
+  });
+}
+document.getElementById("btnAddService").addEventListener("click", function(){
+  if(!Array.isArray(STATE.data.services)) STATE.data.services = [];
+  STATE.data.services.push({ id:"svc_"+uid(), name:{de:"",en:"",hr:""}, price:0, priceType:"once", deleted:false });
+  saveState();
+  renderServiceFields();
+  renderOfferServices();
+});
+
 function renderSettingsAll(){
   if(repairNotice){
     document.getElementById("settingsWarning").innerHTML = '<div class="warn">'+repairNotice+'</div>';
@@ -1143,6 +1289,7 @@ function renderSettingsAll(){
   renderTaxPeriodFields();
   renderRoomPriceFields();
   renderCityTaxFields();
+  renderServiceFields();
 }
 
 /* ===================================================================
@@ -1204,7 +1351,39 @@ function refreshOfferSelectors(){
   if(curRate && findById(STATE.data.rates,curRate)) rateSel.value = curRate;
 
   renderOfferChildSteppers();
+  renderOfferServices();
   updateRoomNote();
+}
+
+var offerServices = {}; // serviceId -> quantity
+function renderOfferServices(){
+  var wrap = document.getElementById("o_services");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+  var list = (STATE.data.services||[]).filter(function(s){ return !s.deleted; });
+  if(!list.length){
+    wrap.innerHTML = '<p class="hint">Keine Zusatzleistungen definiert (Einstellungen → Zusatzleistungen).</p>';
+    return;
+  }
+  list.forEach(function(sv){
+    if(offerServices[sv.id]==null) offerServices[sv.id] = 0;
+    var div = document.createElement("div");
+    div.className = "stepper small";
+    var priceInfo = fmtMoney(sv.price) + (sv.priceType==="perNight" ? " pro Nacht" : " einmalig");
+    div.innerHTML =
+      '<div class="label">'+(sv.name.de||"Leistung")+' <span class="field-note">('+priceInfo+')</span></div>'+
+      '<div class="ctrl"><button type="button" data-sact="dec">–</button><div class="val">'+offerServices[sv.id]+'</div><button type="button" data-sact="inc">+</button></div>';
+    var valEl = div.querySelector(".val");
+    div.querySelectorAll("button").forEach(function(b){
+      b.addEventListener("click", function(){
+        var v = offerServices[sv.id]||0;
+        v = this.dataset.sact==="inc" ? Math.min(9, v+1) : Math.max(0, v-1);
+        offerServices[sv.id] = v;
+        valEl.textContent = v;
+      });
+    });
+    wrap.appendChild(div);
+  });
 }
 
 function renderOfferChildSteppers(){
@@ -1261,7 +1440,7 @@ function validateChildCount(){
 }
 
 function bindStepperButtons(){
-  document.querySelectorAll("#tab-offer .stepper button").forEach(function(btn){
+  document.querySelectorAll("#tab-offer .stepper button[data-act]").forEach(function(btn){
     btn.onclick = function(){
       var target = this.dataset.target, act = this.dataset.act;
       var min = target==="adults" ? 1 : 0;
@@ -1344,28 +1523,23 @@ function computeOffer(){
       if(c>0) childrenPrice += c * childNightPrice(cat, roomPrice);
     });
 
-    var kurtaxePerPerson = 0, kurtaxeAdultRate=0;
-    if(taxPeriod){
-      kurtaxeAdultRate = STATE.data.cityTax[taxPeriod.id].adult || 0;
-    } else { missingTax = true; }
-    var kurtaxeNight = 0;
-    if(taxPeriod){
-      kurtaxeNight += adults * STATE.data.cityTax[taxPeriod.id].adult;
-      STATE.data.childCategories.forEach(function(cat, idx){
-        var c = childCounts[idx];
-        if(c>0){
-          var rateKey = cat.kurtaxeCategory;
-          kurtaxeNight += c * (STATE.data.cityTax[taxPeriod.id][rateKey] || 0);
-        }
-      });
-    }
+    if(!taxPeriod) missingTax = true;
+    var adultTaxRate = taxPeriod ? (STATE.data.cityTax[taxPeriod.id].adult || 0) : 0;
+    var childTaxRates = STATE.data.childCategories.map(function(cat){
+      return taxPeriod ? (STATE.data.cityTax[taxPeriod.id][cat.kurtaxeCategory] || 0) : 0;
+    });
+    var kurtaxeNight = adults * adultTaxRate;
+    childTaxRates.forEach(function(r, idx){
+      if(childCounts[idx]>0) kurtaxeNight += childCounts[idx] * r;
+    });
 
     perNight.push({
       date:date,
       seasonId: season?season.id:null, seasonName: season?season.name:null,
       taxPeriodId: taxPeriod?taxPeriod.id:null, taxPeriodName: taxPeriod?taxPeriod.name:null,
       roomPrice:roomPrice, childrenPrice:childrenPrice, roomNightTotal: roomPrice+childrenPrice,
-      kurtaxeNight:kurtaxeNight
+      kurtaxeNight:kurtaxeNight,
+      adultTaxRate:adultTaxRate, childTaxRates:childTaxRates
     });
   }
 
@@ -1385,7 +1559,7 @@ function computeOffer(){
     if(last && last.kurtaxeNight===n.kurtaxeNight && last.taxPeriodId===n.taxPeriodId){
       last.nights++; last.subtotal += n.kurtaxeNight;
     } else {
-      taxSegments.push({taxPeriodId:n.taxPeriodId, taxPeriodName:n.taxPeriodName, kurtaxeNight:n.kurtaxeNight, nights:1, subtotal:n.kurtaxeNight});
+      taxSegments.push({taxPeriodId:n.taxPeriodId, taxPeriodName:n.taxPeriodName, kurtaxeNight:n.kurtaxeNight, nights:1, subtotal:n.kurtaxeNight, adultTaxRate:n.adultTaxRate, childTaxRates:n.childTaxRates});
     }
   });
 
@@ -1403,7 +1577,22 @@ function computeOffer(){
   }
   discountAmount = Math.round(discountAmount*100)/100;
 
-  var grandTotal = roomTotal - discountAmount + taxTotal;
+  // optional services (parking, transfer, ...), snapshotted into the offer
+  var serviceItems = [];
+  (STATE.data.services||[]).forEach(function(sv){
+    if(sv.deleted) return;
+    var qty = offerServices[sv.id]||0;
+    if(qty<1) return;
+    var total = sv.priceType==="perNight" ? qty*sv.price*nights : qty*sv.price;
+    serviceItems.push({
+      id:sv.id, name:JSON.parse(JSON.stringify(sv.name)),
+      priceType:sv.priceType, price:sv.price, qty:qty,
+      total: Math.round(total*100)/100
+    });
+  });
+  var servicesTotal = serviceItems.reduce(function(s,i){return s+i.total;},0);
+
+  var grandTotal = roomTotal - discountAmount + taxTotal + servicesTotal;
 
   var offer = {
     id: uid(),
@@ -1416,6 +1605,7 @@ function computeOffer(){
     roomId: roomId, rateId: rateId,
     adults: adults, children: childCounts,
     roomSegments: roomSegments, taxSegments: taxSegments,
+    serviceItems: serviceItems, servicesTotal: servicesTotal,
     roomTotal: roomTotal, taxTotal: taxTotal,
     discountType: discountType, discountValue: discountValue,
     discountAmount: discountAmount, discountShow: discountShow,
@@ -1495,9 +1685,36 @@ function renderPreview(offer){
     if(offer.discountType==="percent") discLabel += ' ('+offer.discountValue+' %)';
     priceRows += '<tr><td><b>'+discLabel+'</b></td><td class="num">&minus;'+fmtMoney(disc)+'</td></tr>';
   }
+  (offer.serviceItems||[]).forEach(function(it){
+    var nm = it.name[lang]||it.name.de||"";
+    var note = it.priceType==="perNight"
+      ? fmtMoney(it.price)+' '+L.perNight+' × '+offer.nights+' '+L.nights
+      : fmtMoney(it.price)+' '+L.once;
+    priceRows += '<tr><td>'+it.qty+' × '+nm+'<div class="field-note">'+note+'</div></td><td class="num">'+fmtMoney(it.total)+'</td></tr>';
+  });
   offer.taxSegments.forEach(function(seg){
-    var label = L.taxLine + (seg.taxPeriodName?(" ("+seg.taxPeriodName+")"):"");
-    priceRows += '<tr><td>'+seg.nights+' × '+label+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+    var periodSuffix = seg.taxPeriodName?(" ("+seg.taxPeriodName+")"):"";
+    if(seg.adultTaxRate!==undefined){
+      // per-person breakdown
+      if(offer.adults>0){
+        priceRows += '<tr><td>'+L.taxLine+' – '+L.adults+periodSuffix+
+          '<div class="field-note">'+offer.adults+' '+L.persons+' × '+seg.nights+' '+L.nights+' × '+fmtMoney(seg.adultTaxRate)+'</div></td>'+
+          '<td class="num">'+fmtMoney(offer.adults*seg.adultTaxRate*seg.nights)+'</td></tr>';
+      }
+      STATE.data.childCategories.forEach(function(cat, idx){
+        var c = offer.children[idx]||0;
+        var r = (seg.childTaxRates||[])[idx]||0;
+        if(c>0){
+          priceRows += '<tr><td>'+L.taxLine+' – '+(cat.name[lang]||cat.name.de)+periodSuffix+
+            '<div class="field-note">'+c+' '+L.persons+' × '+seg.nights+' '+L.nights+' × '+fmtMoney(r)+'</div></td>'+
+            '<td class="num">'+fmtMoney(c*r*seg.nights)+'</td></tr>';
+        }
+      });
+    } else {
+      // archived offers from older versions only carry the nightly sum
+      var label = L.taxLine + periodSuffix;
+      priceRows += '<tr><td>'+seg.nights+' × '+label+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+    }
   });
 
   var warnBlock = "";
@@ -1508,7 +1725,7 @@ function renderPreview(offer){
   var html = ''+
   '<div class="doc-header">'+
     '<div class="doc-logo">'+
-      '<div class="mark">VC</div>'+
+      (hotel.logo ? '<img class="doc-logo-img" src="'+hotel.logo+'" alt="'+hotel.name+'">' : '<div class="mark">VC</div>')+
       '<div><div class="hname">'+hotel.name+'</div>'+
         '<div class="haddr">'+hotel.street+'<br>'+hotel.zipCity+'<br>'+hotel.email+'<br>'+hotel.website+'</div>'+
       '</div>'+
