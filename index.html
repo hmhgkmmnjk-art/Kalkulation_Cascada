@@ -515,6 +515,7 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
 =================================================================== */
 var LANGS = ["de","en","hr"];
 var LANG_LABEL = {de:"Deutsch",en:"English",hr:"Hrvatski"};
+var CUR_YEAR = new Date().getFullYear(); // display year for the recurring MM-DD date pickers
 var STORAGE_KEY = "vc_offer_tool_v1";
 var UI_L10N = {
   de:{
@@ -1134,8 +1135,8 @@ function renderSeasonFields(){
     var fromInp = row.querySelector('[data-f=from]');
     var toInp = row.querySelector('[data-f=to]');
     nameInp.value = season.name;
-    fromInp.value = "2000-"+season.from;
-    toInp.value = "2000-"+season.to;
+    fromInp.value = CUR_YEAR+"-"+season.from;
+    toInp.value = CUR_YEAR+"-"+season.to;
     nameInp.addEventListener("input", function(){ season.name=this.value; saveState(); refreshOfferSelectors(); renderRoomPriceFields(); });
     fromInp.addEventListener("input", function(){ season.from=this.value.slice(5); saveState(); renderRoomPriceFields(); });
     toInp.addEventListener("input", function(){ season.to=this.value.slice(5); saveState(); renderRoomPriceFields(); });
@@ -1157,8 +1158,8 @@ function renderTaxPeriodFields(){
     var fromInp = row.querySelector('[data-f=from]');
     var toInp = row.querySelector('[data-f=to]');
     nameInp.value = p.name;
-    fromInp.value = "2000-"+p.from;
-    toInp.value = "2000-"+p.to;
+    fromInp.value = CUR_YEAR+"-"+p.from;
+    toInp.value = CUR_YEAR+"-"+p.to;
     nameInp.addEventListener("input", function(){ p.name=this.value; saveState(); renderCityTaxFields(); });
     fromInp.addEventListener("input", function(){ p.from=this.value.slice(5); saveState(); renderCityTaxFields(); });
     toInp.addEventListener("input", function(){ p.to=this.value.slice(5); saveState(); renderCityTaxFields(); });
