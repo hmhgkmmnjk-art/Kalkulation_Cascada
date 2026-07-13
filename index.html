@@ -733,32 +733,102 @@ function migrateSeasonDates(data){
 var STATE = { data: defaultData(), offers: [] };
 var repairNotice = "";
 
-function loadState(){
-  var raw = localStorage.getItem(STORAGE_KEY);
-  if(!raw){
-    STATE = { data: defaultData(), offers: [] };
-    ensurePriceSkeleton(STATE.data);
+/* Storage backend: IndexedDB (hundreds of MB) instead of localStorage
+   (~2.5-5 MB). Existing localStorage data is migrated on first load. */
+var DB_NAME = "vc_offer_tool", DB_STORE = "kv", DB_KEY = "state";
+var idb = null;
+
+function openDB(cb){
+  try{
+    var req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = function(){ req.result.createObjectStore(DB_STORE); };
+    req.onsuccess = function(){ idb = req.result; cb(null); };
+    req.onerror = function(){ cb(req.error || new Error("IndexedDB nicht verfügbar")); };
+  }catch(e){ cb(e); }
+}
+function idbGet(cb){
+  try{
+    var rq = idb.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(DB_KEY);
+    rq.onsuccess = function(){ cb(null, rq.result); };
+    rq.onerror = function(){ cb(rq.error); };
+  }catch(e){ cb(e); }
+}
+function idbSet(value, cb){
+  try{
+    var tx = idb.transaction(DB_STORE, "readwrite");
+    tx.objectStore(DB_STORE).put(value, DB_KEY);
+    tx.oncomplete = function(){ if(cb) cb(null); };
+    tx.onerror = function(){ if(cb) cb(tx.error); };
+  }catch(e){ if(cb) cb(e); }
+}
+
+function applyParsedState(parsed){
+  var def = defaultData();
+  var mergedData = deepMerge(def, (parsed && parsed.data) || {});
+  migrateSeasonDates(mergedData);
+  ensurePriceSkeleton(mergedData);
+  var offers = (parsed && Array.isArray(parsed.offers)) ? parsed.offers : [];
+  STATE = { data: mergedData, offers: offers };
+}
+function applyDefaultState(notice){
+  if(notice) repairNotice = notice;
+  STATE = { data: defaultData(), offers: [] };
+  ensurePriceSkeleton(STATE.data);
+}
+
+function loadState(done){
+  openDB(function(err){
+    if(err){
+      // fallback: old localStorage path (read-only environments, ancient browsers)
+      loadFromLocalStorage();
+      done();
+      return;
+    }
+    idbGet(function(err2, stored){
+      if(!err2 && stored){
+        try{ applyParsedState(stored); }
+        catch(e){ applyDefaultState("Gespeicherte Daten waren beschädigt und wurden auf Standardwerte zurückgesetzt."); }
+        done();
+        return;
+      }
+      // first run with IndexedDB: migrate existing localStorage data
+      var raw = null;
+      try{ raw = localStorage.getItem(STORAGE_KEY); }catch(e){}
+      if(raw){
+        try{ applyParsedState(JSON.parse(raw)); }
+        catch(e){ applyDefaultState("Gespeicherte Daten waren beschädigt und wurden auf Standardwerte zurückgesetzt."); }
+        saveState();
+        try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+      } else {
+        applyDefaultState();
+      }
+      done();
+    });
+  });
+}
+
+function loadFromLocalStorage(){
+  var raw = null;
+  try{ raw = localStorage.getItem(STORAGE_KEY); }catch(e){}
+  if(!raw){ applyDefaultState(); return; }
+  try{ applyParsedState(JSON.parse(raw)); }
+  catch(e){ applyDefaultState("Gespeicherte Daten waren beschädigt und wurden auf Standardwerte zurückgesetzt."); }
+}
+
+var saveErrorShown = false;
+function saveState(){
+  var snapshot = JSON.parse(JSON.stringify(STATE));
+  if(idb){
+    idbSet(snapshot, function(err){
+      if(err && !saveErrorShown){
+        saveErrorShown = true;
+        alert("Speichern fehlgeschlagen: " + (err.message||err));
+      }
+    });
     return;
   }
   try{
-    var parsed = JSON.parse(raw);
-    var def = defaultData();
-    var mergedData = deepMerge(def, parsed.data || {});
-    migrateSeasonDates(mergedData);
-    ensurePriceSkeleton(mergedData);
-    var offers = Array.isArray(parsed.offers) ? parsed.offers : [];
-    STATE = { data: mergedData, offers: offers };
-  }catch(e){
-    console.error("Fehler beim Laden der gespeicherten Daten:", e);
-    repairNotice = "Gespeicherte Daten waren beschädigt und wurden auf Standardwerte zurückgesetzt.";
-    STATE = { data: defaultData(), offers: [] };
-    ensurePriceSkeleton(STATE.data);
-  }
-}
-
-function saveState(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   }catch(e){
     alert("Speichern fehlgeschlagen: " + e.message);
   }
@@ -1967,10 +2037,11 @@ function renderAll(){
   renderPreview(lastComputedOffer);
 }
 
-loadState();
-initOfferDefaults();
-renderAll();
-switchTab("tab-settings");
+loadState(function(){
+  initOfferDefaults();
+  renderAll();
+  switchTab("tab-settings");
+});
 
 })();
 </script>
