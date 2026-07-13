@@ -128,7 +128,7 @@ details.section .section-body{padding:4px 16px 16px;border-top:1px solid var(--b
 
 label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.3px;}
 label.first{margin-top:0;}
-input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],select,textarea{
+input[type=text],input[type=email],input[type=tel],input[type=number],input[type=date],input[type=time],select,textarea{
   width:100%;
   padding:11px 12px;
   border:1px solid var(--border);
@@ -296,6 +296,16 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
         <input type="email" id="s_hotel_email">
         <label>Internetseite</label>
         <input type="text" id="s_hotel_website">
+        <div class="row2">
+          <div>
+            <label>Check-in ab</label>
+            <input type="time" id="s_hotel_checkin">
+          </div>
+          <div>
+            <label>Check-out bis</label>
+            <input type="time" id="s_hotel_checkout">
+          </div>
+        </div>
         <label>Logo (erscheint im Angebot)</label>
         <div id="logoRow">
           <img id="logoPreview" alt="Logo" style="display:none;">
@@ -524,7 +534,8 @@ var UI_L10N = {
     amenities:"Ausstattung", bank:"Bankverbindung", offerNo:"Angebots-Nr.",
     roomLine:"Zimmer", taxLine:"Kurtaxe", perNight:"pro Nacht", perPersonNight:"pro Person/Nacht",
     discount:"Rabatt", subtotal:"Zwischensumme",
-    persons:"Personen", person:"Person", once:"einmalig", night:"Nacht"
+    persons:"Personen", person:"Person", once:"einmalig", night:"Nacht",
+    fromClock:"ab", untilClock:"bis", clockSuffix:" Uhr"
   },
   en:{
     nights:"nights", offerFor:"Offer for", offerDate:"Offer date", validUntil:"Valid until",
@@ -535,7 +546,8 @@ var UI_L10N = {
     amenities:"Amenities", bank:"Bank details", offerNo:"Offer no.",
     roomLine:"Room", taxLine:"City tax", perNight:"per night", perPersonNight:"per person/night",
     discount:"Discount", subtotal:"Subtotal",
-    persons:"persons", person:"person", once:"one-time", night:"night"
+    persons:"persons", person:"person", once:"one-time", night:"night",
+    fromClock:"from", untilClock:"until", clockSuffix:""
   },
   hr:{
     nights:"noćenja", offerFor:"Ponuda za", offerDate:"Datum ponude", validUntil:"Vrijedi do",
@@ -546,7 +558,8 @@ var UI_L10N = {
     amenities:"Sadržaji", bank:"Bankovni podaci", offerNo:"Broj ponude",
     roomLine:"Soba", taxLine:"Boravišna pristojba", perNight:"po noćenju", perPersonNight:"po osobi/noćenju",
     discount:"Popust", subtotal:"Međuzbroj",
-    persons:"osobe", person:"osoba", once:"jednokratno", night:"noćenje"
+    persons:"osobe", person:"osoba", once:"jednokratno", night:"noćenje",
+    fromClock:"od", untilClock:"do", clockSuffix:" h"
   }
 };
 
@@ -564,7 +577,9 @@ function defaultData(){
       phone:"",
       email:"info@villa-cascada.net",
       website:"www.cascada-podgora.com",
-      logo:""
+      logo:"",
+      checkInTime:"14:00",
+      checkOutTime:"10:00"
     },
     bank:{ bankName:"", iban:"", bic:"", holder:"" },
     texts:{
@@ -936,6 +951,8 @@ function renderHotelBankFields(){
   document.getElementById("s_hotel_phone").value = h.phone;
   document.getElementById("s_hotel_email").value = h.email;
   document.getElementById("s_hotel_website").value = h.website;
+  document.getElementById("s_hotel_checkin").value = h.checkInTime || "14:00";
+  document.getElementById("s_hotel_checkout").value = h.checkOutTime || "10:00";
   document.getElementById("s_bank_name").value = b.bankName;
   document.getElementById("s_bank_iban").value = b.iban;
   document.getElementById("s_bank_bic").value = b.bic;
@@ -985,10 +1002,10 @@ document.getElementById("logoInput").addEventListener("change", function(e){
   };
   reader.readAsDataURL(file);
 });
-["s_hotel_name","s_hotel_street","s_hotel_zipcity","s_hotel_phone","s_hotel_email","s_hotel_website"].forEach(function(id){
+["s_hotel_name","s_hotel_street","s_hotel_zipcity","s_hotel_phone","s_hotel_email","s_hotel_website","s_hotel_checkin","s_hotel_checkout"].forEach(function(id){
   document.getElementById(id).addEventListener("input", function(){
     var key = id.replace("s_hotel_","");
-    var map = {zipcity:"zipCity"};
+    var map = {zipcity:"zipCity", checkin:"checkInTime", checkout:"checkOutTime"};
     STATE.data.hotel[map[key]||key] = this.value;
     saveState();
   });
@@ -1980,8 +1997,8 @@ function renderPreview(offer){
   '<div class="doc-block">'+txt.standard+'</div>'+
   warnBlock+
   '<div class="doc-block guest-grid">'+
-    '<div><span>'+L.checkin+':</span> <b>'+formatDisplayDate(offer.checkIn,lang)+'</b></div>'+
-    '<div><span>'+L.checkout+':</span> <b>'+formatDisplayDate(offer.checkOut,lang)+'</b></div>'+
+    '<div><span>'+L.checkin+':</span> <b>'+formatDisplayDate(offer.checkIn,lang)+'</b>'+(hotel.checkInTime?(' ('+L.fromClock+' '+hotel.checkInTime+L.clockSuffix+')'):'')+'</div>'+
+    '<div><span>'+L.checkout+':</span> <b>'+formatDisplayDate(offer.checkOut,lang)+'</b>'+(hotel.checkOutTime?(' ('+L.untilClock+' '+hotel.checkOutTime+L.clockSuffix+')'):'')+'</div>'+
     '<div><span>'+L.nightsCol+':</span> <b>'+offer.nights+'</b></div>'+
     items.map(function(it, i){
       var nm = itemRooms[i] ? itemRooms[i].name[lang] : "";
