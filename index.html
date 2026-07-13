@@ -346,7 +346,7 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
         <h3>Annehmlichkeiten je Zimmer (Freitext)</h3>
         <div id="roomsAmenityFields"></div>
         <h3>Bilder je Zimmer</h3>
-        <p class="hint">Bis zu 3 Bilder pro Zimmerkategorie (JPG/PNG, werden automatisch verkleinert). Ob die Bilder im Angebot erscheinen, entscheidest du bei der Angebotserstellung.</p>
+        <p class="hint">Bis zu 6 Bilder pro Zimmerkategorie (JPG/PNG, werden automatisch verkleinert). Ob die Bilder im Angebot erscheinen, entscheidest du bei der Angebotserstellung.</p>
         <div id="roomsImageFields"></div>
         <input type="file" accept="image/*" id="roomImgInput" class="import-input">
       </div>
@@ -1001,7 +1001,7 @@ function renderRoomFields(){
   renderRoomImageFields();
 }
 
-var MAX_ROOM_IMAGES = 3;
+var MAX_ROOM_IMAGES = 6;
 function renderRoomImageFields(){
   var wrap = document.getElementById("roomsImageFields");
   wrap.innerHTML = "";
