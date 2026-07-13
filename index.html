@@ -538,7 +538,7 @@ var UI_L10N = {
     amenities:"Ausstattung", bank:"Bankverbindung", offerNo:"Angebots-Nr.",
     roomLine:"Zimmer", taxLine:"Kurtaxe", perNight:"pro Nacht", perPersonNight:"pro Person/Nacht",
     discount:"Rabatt", subtotal:"Zwischensumme",
-    persons:"Personen", once:"einmalig"
+    persons:"Personen", person:"Person", once:"einmalig", night:"Nacht"
   },
   en:{
     nights:"nights", offerFor:"Offer for", offerDate:"Offer date", validUntil:"Valid until",
@@ -549,7 +549,7 @@ var UI_L10N = {
     amenities:"Amenities", bank:"Bank details", offerNo:"Offer no.",
     roomLine:"Room", taxLine:"City tax", perNight:"per night", perPersonNight:"per person/night",
     discount:"Discount", subtotal:"Subtotal",
-    persons:"persons", once:"one-time"
+    persons:"persons", person:"person", once:"one-time", night:"night"
   },
   hr:{
     nights:"noćenja", offerFor:"Ponuda za", offerDate:"Datum ponude", validUntil:"Vrijedi do",
@@ -560,7 +560,7 @@ var UI_L10N = {
     amenities:"Sadržaji", bank:"Bankovni podaci", offerNo:"Broj ponude",
     roomLine:"Soba", taxLine:"Boravišna pristojba", perNight:"po noćenju", perPersonNight:"po osobi/noćenju",
     discount:"Popust", subtotal:"Međuzbroj",
-    persons:"osobe", once:"jednokratno"
+    persons:"osobe", person:"osoba", once:"jednokratno", night:"noćenje"
   }
 };
 
@@ -1856,10 +1856,13 @@ function renderPreview(offer){
     });
   }
 
+  function nightsLabel(n){ return n+' '+(n===1 ? L.night : L.nights); }
+  function personsLabel(n){ return n+' '+(n===1 ? L.person : L.persons); }
+
   var priceRows = "";
   displaySegments.forEach(function(seg){
-    var label = L.roomLine + " – " + (room?room.name[lang]:"") + ", " + (rate?rate.name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"");
-    priceRows += '<tr><td>'+seg.nights+' × '+label+'<div class="field-note">'+fmtMoney(seg.perNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+    var label = (room?room.name[lang]:"") + ", " + (rate?rate.name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"");
+    priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+label+'<div class="field-note">'+fmtMoney(seg.perNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
   });
   if(disc>0 && offer.discountShow){
     var discLabel = L.discount;
@@ -1869,7 +1872,7 @@ function renderPreview(offer){
   (offer.serviceItems||[]).forEach(function(it){
     var nm = it.name[lang]||it.name.de||"";
     var note = it.priceType==="perNight"
-      ? fmtMoney(it.price)+' '+L.perNight+' × '+offer.nights+' '+L.nights
+      ? fmtMoney(it.price)+' '+L.perNight+' × '+nightsLabel(offer.nights)
       : fmtMoney(it.price)+' '+L.once;
     priceRows += '<tr><td>'+it.qty+' × '+nm+'<div class="field-note">'+note+'</div></td><td class="num">'+fmtMoney(it.total)+'</td></tr>';
   });
@@ -1879,7 +1882,7 @@ function renderPreview(offer){
       // per-person breakdown
       if(offer.adults>0){
         priceRows += '<tr><td>'+L.taxLine+' – '+L.adults+periodSuffix+
-          '<div class="field-note">'+offer.adults+' '+L.persons+' × '+seg.nights+' '+L.nights+' × '+fmtMoney(seg.adultTaxRate)+'</div></td>'+
+          '<div class="field-note">'+personsLabel(offer.adults)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(seg.adultTaxRate)+'</div></td>'+
           '<td class="num">'+fmtMoney(offer.adults*seg.adultTaxRate*seg.nights)+'</td></tr>';
       }
       STATE.data.childCategories.forEach(function(cat, idx){
@@ -1887,14 +1890,14 @@ function renderPreview(offer){
         var r = (seg.childTaxRates||[])[idx]||0;
         if(c>0){
           priceRows += '<tr><td>'+L.taxLine+' – '+(cat.name[lang]||cat.name.de)+periodSuffix+
-            '<div class="field-note">'+c+' '+L.persons+' × '+seg.nights+' '+L.nights+' × '+fmtMoney(r)+'</div></td>'+
+            '<div class="field-note">'+personsLabel(c)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(r)+'</div></td>'+
             '<td class="num">'+fmtMoney(c*r*seg.nights)+'</td></tr>';
         }
       });
     } else {
       // archived offers from older versions only carry the nightly sum
       var label = L.taxLine + periodSuffix;
-      priceRows += '<tr><td>'+seg.nights+' × '+label+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+      priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+label+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
     }
   });
 
