@@ -251,6 +251,12 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
 .import-input{display:none;}
 #logoPreview{max-height:60px;max-width:180px;object-fit:contain;display:block;margin-bottom:8px;border:1px solid var(--border);border-radius:8px;padding:4px;background:var(--white);}
 .doc-logo img.doc-logo-img{max-height:64px;max-width:200px;object-fit:contain;}
+.roomimg-row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px;}
+.roomimg-thumb{position:relative;}
+.roomimg-thumb img{width:86px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block;}
+.roomimg-thumb button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:none;background:var(--danger);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;}
+.doc-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;page-break-inside:avoid;}
+.doc-images img{width:100%;height:150px;object-fit:cover;border-radius:8px;display:block;}
 .center{text-align:center;}
 .mt8{margin-top:8px;}
 .mb0{margin-bottom:0;}
@@ -339,6 +345,10 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
         <div id="roomsNameFields"></div>
         <h3>Annehmlichkeiten je Zimmer (Freitext)</h3>
         <div id="roomsAmenityFields"></div>
+        <h3>Bilder je Zimmer</h3>
+        <p class="hint">Bis zu 3 Bilder pro Zimmerkategorie (JPG/PNG, werden automatisch verkleinert). Ob die Bilder im Angebot erscheinen, entscheidest du bei der Angebotserstellung.</p>
+        <div id="roomsImageFields"></div>
+        <input type="file" accept="image/*" id="roomImgInput" class="import-input">
       </div>
     </details>
 
@@ -439,6 +449,7 @@ table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none
       <label>Rate</label>
       <select id="o_rate"></select>
       <div id="o_roomNote"></div>
+      <label class="check-row" id="o_showImagesRow" style="display:none;"><input type="checkbox" id="o_showImages" checked> Zimmerbilder im Angebot anzeigen</label>
 
       <h3>Gästebelegung</h3>
       <div class="stepper small" id="o_adultsStepper">
@@ -606,13 +617,13 @@ function defaultData(){
       }
     },
     rooms:[
-      { id:"room1", maxChildren:0, name:{de:"Doppelzimmer mit Balkon und Meerblick", en:"Double Room with Balcony and Sea View", hr:"Dvokrevetna soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room2", maxChildren:0, name:{de:"Doppelzimmer mit Terrasse und Meerblick", en:"Double Room with Terrace and Sea View", hr:"Dvokrevetna soba s terasom i pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room3", maxChildren:2, name:{de:"Superior-Zimmer mit Balkon und Meerblick", en:"Superior Room with Balcony and Sea View", hr:"Superior soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room4", maxChildren:0, name:{de:"Deluxe-Doppelzimmer mit Balkon und Meerblick", en:"Deluxe Double Room with Balcony and Sea View", hr:"Deluxe dvokrevetna soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room5", maxChildren:0, name:{de:"Doppelzimmer mit seitlichem Meerblick", en:"Double Room with Side Sea View", hr:"Dvokrevetna soba s bočnim pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room6", maxChildren:2, name:{de:"Familienzimmer mit Balkon und Meerblick", en:"Family Room with Balcony and Sea View", hr:"Obiteljska soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""} },
-      { id:"room7", maxChildren:0, name:{de:"Doppelzimmer mit Meerblick", en:"Double Room with Sea View", hr:"Dvokrevetna soba s pogledom na more"}, amenities:{de:"",en:"",hr:""} }
+      { id:"room1", maxChildren:0, name:{de:"Doppelzimmer mit Balkon und Meerblick", en:"Double Room with Balcony and Sea View", hr:"Dvokrevetna soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room2", maxChildren:0, name:{de:"Doppelzimmer mit Terrasse und Meerblick", en:"Double Room with Terrace and Sea View", hr:"Dvokrevetna soba s terasom i pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room3", maxChildren:2, name:{de:"Superior-Zimmer mit Balkon und Meerblick", en:"Superior Room with Balcony and Sea View", hr:"Superior soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room4", maxChildren:0, name:{de:"Deluxe-Doppelzimmer mit Balkon und Meerblick", en:"Deluxe Double Room with Balcony and Sea View", hr:"Deluxe dvokrevetna soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room5", maxChildren:0, name:{de:"Doppelzimmer mit seitlichem Meerblick", en:"Double Room with Side Sea View", hr:"Dvokrevetna soba s bočnim pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room6", maxChildren:2, name:{de:"Familienzimmer mit Balkon und Meerblick", en:"Family Room with Balcony and Sea View", hr:"Obiteljska soba s balkonom i pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] },
+      { id:"room7", maxChildren:0, name:{de:"Doppelzimmer mit Meerblick", en:"Double Room with Sea View", hr:"Dvokrevetna soba s pogledom na more"}, amenities:{de:"",en:"",hr:""}, images:[] }
     ],
     rates:[
       { id:"rate1", key:"rate1", name:{de:"Frühstück – Flex", en:"Breakfast – Flex", hr:"Doručak – Fleksibilno"}, halfBoard:false, derivedFrom:"", derivedPercent:10 },
@@ -671,6 +682,8 @@ function ensurePriceSkeleton(data){
 function deepMerge(def, saved){
   if(Array.isArray(def)){
     if(!Array.isArray(saved)) return def;
+    // empty default arrays are pure user-data containers (e.g. room images) — keep saved content
+    if(def.length===0) return JSON.parse(JSON.stringify(saved));
     // merge by id when possible
     var merged = def.map(function(defItem){
       var match = saved.find(function(s){ return s && defItem.id && s.id===defItem.id; });
@@ -985,7 +998,81 @@ function renderRoomFields(){
     amWrap.appendChild(lab);
     amWrap.appendChild(ta);
   });
+  renderRoomImageFields();
 }
+
+var MAX_ROOM_IMAGES = 3;
+function renderRoomImageFields(){
+  var wrap = document.getElementById("roomsImageFields");
+  wrap.innerHTML = "";
+  STATE.data.rooms.forEach(function(room, i){
+    if(!Array.isArray(room.images)) room.images = [];
+    var lab = document.createElement("label");
+    lab.className = i===0 ? "first" : "";
+    lab.textContent = room.name.de || ("Zimmer "+(i+1));
+    wrap.appendChild(lab);
+
+    var row = document.createElement("div");
+    row.className = "roomimg-row";
+    room.images.forEach(function(src, idx){
+      var th = document.createElement("div");
+      th.className = "roomimg-thumb";
+      var img = document.createElement("img");
+      img.src = src;
+      var del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "✕";
+      del.addEventListener("click", function(){
+        room.images.splice(idx,1);
+        saveState();
+        renderRoomImageFields();
+        renderPreview(lastComputedOffer);
+      });
+      th.appendChild(img); th.appendChild(del);
+      row.appendChild(th);
+    });
+    wrap.appendChild(row);
+
+    if(room.images.length < MAX_ROOM_IMAGES){
+      var add = document.createElement("button");
+      add.className = "btn btn-outline btn-sm";
+      add.textContent = "📷 Bild hinzufügen";
+      add.addEventListener("click", function(){
+        roomImgTargetId = room.id;
+        document.getElementById("roomImgInput").click();
+      });
+      wrap.appendChild(add);
+    }
+  });
+}
+var roomImgTargetId = null;
+document.getElementById("roomImgInput").addEventListener("change", function(e){
+  var file = e.target.files[0];
+  e.target.value = "";
+  var room = findById(STATE.data.rooms, roomImgTargetId);
+  if(!file || !room) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      // downscale + JPEG so several photos fit into localStorage
+      var MAX = 800;
+      var scale = Math.min(1, MAX/Math.max(img.width, img.height));
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width*scale);
+      canvas.height = Math.round(img.height*scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      if(!Array.isArray(room.images)) room.images = [];
+      room.images.push(canvas.toDataURL("image/jpeg", 0.8));
+      saveState();
+      renderRoomImageFields();
+      renderPreview(lastComputedOffer);
+    };
+    img.onerror = function(){ alert("Bilddatei konnte nicht gelesen werden."); };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 function renderRateFields(){
   var wrap = document.getElementById("ratesNameFields");
@@ -1430,6 +1517,8 @@ function renderOfferChildSteppers(){
 function updateRoomNote(){
   var room = findById(STATE.data.rooms, document.getElementById("o_room").value);
   var noteEl = document.getElementById("o_roomNote");
+  var imgRow = document.getElementById("o_showImagesRow");
+  imgRow.style.display = (room && Array.isArray(room.images) && room.images.length) ? "flex" : "none";
   if(!room){ noteEl.innerHTML=""; return; }
   if(room.maxChildren>0){
     noteEl.innerHTML = '<div class="hint">Belegung 2 Erwachsene + max. '+room.maxChildren+' Kinder.</div>';
@@ -1624,6 +1713,7 @@ function computeOffer(){
     validUntil: document.getElementById("o_validuntil").value,
     checkIn: checkIn, checkOut: checkOut, nights: nights,
     roomId: roomId, rateId: rateId,
+    showImages: document.getElementById("o_showImages").checked,
     adults: adults, children: childCounts,
     roomSegments: roomSegments, taxSegments: taxSegments,
     serviceItems: serviceItems, servicesTotal: servicesTotal,
@@ -1772,6 +1862,8 @@ function renderPreview(offer){
     '<div class="guest-grid">'+guestRows+'</div>'+
   '</div>'+
   (amenities ? '<div class="doc-block"><h4>'+L.amenities+'</h4><p>'+amenities.replace(/\n/g,"<br>")+'</p></div>' : '')+
+  (offer.showImages===true && room && Array.isArray(room.images) && room.images.length
+    ? '<div class="doc-block doc-images">'+room.images.map(function(src){ return '<img src="'+src+'" alt="">'; }).join('')+'</div>' : '')+
   (rate && rate.halfBoard ? '<div class="doc-block"><h4>'+L.halfBoard+'</h4><p>'+txt.hpDescription+'</p></div>' : '')+
   '<div class="doc-block">'+
     '<h4>'+L.services+'</h4>'+
@@ -1878,6 +1970,7 @@ function renderAll(){
 loadState();
 initOfferDefaults();
 renderAll();
+switchTab("tab-settings");
 
 })();
 </script>
