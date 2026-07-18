@@ -523,7 +523,7 @@ var UI_L10N = {
     roomLine:"Zimmer", taxLine:"Kurtaxe", perNight:"pro Nacht", perPersonNight:"pro Person/Nacht",
     discount:"Rabatt", subtotal:"Zwischensumme",
     persons:"Personen", person:"Person", once:"einmalig", night:"Nacht",
-    fromClock:"ab", untilClock:"bis", clockSuffix:" Uhr"
+    fromClock:"ab", untilClock:"bis", clockSuffix:" Uhr", adult:"Erwachsener"
   },
   en:{
     nights:"nights", offerFor:"Offer for", offerDate:"Offer date", validUntil:"Valid until",
@@ -535,7 +535,7 @@ var UI_L10N = {
     roomLine:"Room", taxLine:"City tax", perNight:"per night", perPersonNight:"per person/night",
     discount:"Discount", subtotal:"Subtotal",
     persons:"persons", person:"person", once:"one-time", night:"night",
-    fromClock:"from", untilClock:"until", clockSuffix:""
+    fromClock:"from", untilClock:"until", clockSuffix:"", adult:"Adult"
   },
   hr:{
     nights:"noćenja", offerFor:"Ponuda za", offerDate:"Datum ponude", validUntil:"Vrijedi do",
@@ -547,7 +547,7 @@ var UI_L10N = {
     roomLine:"Soba", taxLine:"Boravišna pristojba", perNight:"po noćenju", perPersonNight:"po osobi/noćenju",
     discount:"Popust", subtotal:"Međuzbroj",
     persons:"osobe", person:"osoba", once:"jednokratno", night:"noćenje",
-    fromClock:"od", untilClock:"do", clockSuffix:" h"
+    fromClock:"od", untilClock:"do", clockSuffix:" h", adult:"Odrasla osoba"
   }
 };
 
@@ -2098,18 +2098,33 @@ function renderPreview(offer){
     '<div class="guest-grid">'+guestRows+'</div>'+
   '</div>'+
   (function(){
-    // one block per distinct room: amenities text plus that room's photos
-    var seen = {}, blocks = "";
+    // one block per room position: occupancy, amenities and photos.
+    // amenities/photos appear only on the first occurrence of a category
+    // so offering the same room twice doesn't duplicate them
+    var seenAssets = {}, blocks = "";
     items.forEach(function(it, i){
       var r = itemRooms[i];
-      if(!r || seen[r.id]) return;
-      seen[r.id] = true;
-      var am = r.amenities[lang]||"";
-      var imgs = (offer.showImages===true && Array.isArray(r.images)) ? r.images : [];
-      if(!am && !imgs.length) return;
-      var heading = multi ? r.name[lang] : L.amenities;
+      if(!r) return;
+      var firstOfCategory = !seenAssets[r.id];
+      seenAssets[r.id] = true;
+      var am = firstOfCategory ? (r.amenities[lang]||"") : "";
+      var imgs = (firstOfCategory && offer.showImages===true && Array.isArray(r.images)) ? r.images : [];
+      var occ = "";
+      if(multi){
+        var parts = [];
+        var a = it.adults||0;
+        parts.push(a+' '+(a===1 ? L.adult : L.adults));
+        STATE.data.childCategories.forEach(function(cat, ci){
+          var c = (it.children||[])[ci]||0;
+          if(c>0) parts.push(c+' '+(cat.name[lang]||cat.name.de));
+        });
+        occ = '<p><span style="color:var(--muted);">'+L.guests+':</span> <b>'+parts.join(', ')+'</b></p>';
+      }
+      if(!am && !imgs.length && !occ) return;
+      var heading = multi ? (L.roomLine+' '+(i+1)+' – '+r.name[lang]) : L.amenities;
       blocks += '<div class="doc-block">'+
         '<h4>'+heading+'</h4>'+
+        occ+
         (am ? '<p>'+am.replace(/\n/g,"<br>")+'</p>' : '')+
         (imgs.length ? '<div class="doc-images">'+imgs.map(function(src){ return '<img src="'+src+'" alt="">'; }).join('')+'</div>' : '')+
       '</div>';
