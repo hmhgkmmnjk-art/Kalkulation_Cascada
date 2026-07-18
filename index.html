@@ -237,6 +237,7 @@ table.pricetable td.num{text-align:right;white-space:nowrap;font-variant-numeric
 table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none;font-weight:700;font-size:15px;color:var(--navy);padding-top:10px;}
 table.pricetable tr.roomhead td{background:var(--sand);font-weight:700;color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:8px 6px;border-bottom:1px solid var(--border);}
 table.pricetable tr.roomhead:not(:first-child) td{border-top:10px solid var(--white);}
+table.pricetable tr.roomsub td{font-weight:700;color:var(--navy);border-bottom:2px solid var(--border);}
 .doc-footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--sand);font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .doc-footer .bank b{color:var(--navy);display:block;font-size:11.5px;}
 .greeting{white-space:pre-line;margin-top:10px;font-size:13.5px;}
@@ -2049,6 +2050,12 @@ function renderPreview(offer){
     }
     // legacy offers store tax at offer level; new ones per room item
     priceRows += taxRowsFor(it.adults||0, it.children||[], it.taxSegments || (!multi ? offer.taxSegments : []));
+    if(multi){
+      var segSum = itemSegs[i].reduce(function(s,x){return s+x.subtotal;},0);
+      var shownDisc = (hasItemDisc && offer.discountShow) ? (it.discountAmount||0) : 0;
+      var taxSub = (it.taxSegments||[]).reduce(function(s,x){return s+x.subtotal;},0);
+      priceRows += '<tr class="roomsub"><td>'+L.subtotal+' '+L.roomLine+' '+(i+1)+'</td><td class="num">'+fmtMoney(segSum - shownDisc + taxSub)+'</td></tr>';
+    }
   });
   if(!hasItemDisc && disc>0 && offer.discountShow){
     var discLabel = L.discount;
@@ -2093,7 +2100,7 @@ function renderPreview(offer){
       var nm = itemRooms[i] ? itemRooms[i].name[lang] : "";
       var rt = itemRates[i] ? itemRates[i].name[lang] : "";
       var roomLabel = items.length>1 ? (L.room+' '+(i+1)) : L.room;
-      return '<div><span>'+roomLabel+':</span> <b>'+nm+'</b> ('+rt+')</div>';
+      return '<div style="grid-column:1/-1;"><span>'+roomLabel+':</span> <b>'+nm+'</b> ('+rt+')</div>';
     }).join('')+
   '</div>'+
   '<div class="doc-block">'+
