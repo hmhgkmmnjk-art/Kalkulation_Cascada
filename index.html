@@ -235,6 +235,8 @@ table.pricetable th{text-align:left;font-size:10.5px;text-transform:uppercase;co
 table.pricetable td{padding:7px 4px;border-bottom:1px solid var(--sand);}
 table.pricetable td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 table.pricetable tr.total td{border-top:2px solid var(--navy);border-bottom:none;font-weight:700;font-size:15px;color:var(--navy);padding-top:10px;}
+table.pricetable tr.roomhead td{background:var(--sand);font-weight:700;color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding:8px 6px;border-bottom:1px solid var(--border);}
+table.pricetable tr.roomhead:not(:first-child) td{border-top:10px solid var(--white);}
 .doc-footer{margin-top:20px;padding-top:14px;border-top:1px solid var(--sand);font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
 .doc-footer .bank b{color:var(--navy);display:block;font-size:11.5px;}
 .greeting{white-space:pre-line;margin-top:10px;font-size:13.5px;}
@@ -846,16 +848,21 @@ function inRangeMD(md, from, to){
   if(from <= to) return md >= from && md <= to;
   return md >= from || md <= to; // wraparound over year boundary
 }
+// format in LOCAL time — toISOString() is UTC and shifts the date back a day
+// in timezones ahead of UTC, moving nights into the wrong season
+function fmtDateLocal(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
 function addDays(dateStr, n){
   var d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate()+n);
-  return d.toISOString().slice(0,10);
+  return fmtDateLocal(d);
 }
 function dateDiffDays(a,b){
   var da = new Date(a+"T00:00:00"), db = new Date(b+"T00:00:00");
   return Math.round((db-da)/86400000);
 }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){ return fmtDateLocal(new Date()); }
 function formatDisplayDate(dateStr, lang){
   if(!dateStr) return "";
   var d = new Date(dateStr+"T00:00:00");
@@ -1781,31 +1788,39 @@ function computeOffer(){
     };
   });
 
-  // city tax: per night with the summed guest counts
-  var taxSegments = [];
-  for(var t=0;t<nights;t++){
-    var tDate = addDays(checkIn, t);
-    var taxPeriod = getTaxPeriodForDate(tDate);
-    if(!taxPeriod) missingTax = true;
-    var adultTaxRate = taxPeriod ? (STATE.data.cityTax[taxPeriod.id].adult || 0) : 0;
-    var childTaxRates = STATE.data.childCategories.map(function(cat){
-      return taxPeriod ? (STATE.data.cityTax[taxPeriod.id][cat.kurtaxeCategory] || 0) : 0;
-    });
-    var kurtaxeNight = totalAdults * adultTaxRate;
-    childTaxRates.forEach(function(r, idx){
-      if(totalChildCounts[idx]>0) kurtaxeNight += totalChildCounts[idx] * r;
-    });
-    var tpId = taxPeriod?taxPeriod.id:null;
-    var lastT = taxSegments[taxSegments.length-1];
-    if(lastT && lastT.kurtaxeNight===kurtaxeNight && lastT.taxPeriodId===tpId){
-      lastT.nights++; lastT.subtotal += kurtaxeNight;
-    } else {
-      taxSegments.push({taxPeriodId:tpId, taxPeriodName:taxPeriod?taxPeriod.name:null, kurtaxeNight:kurtaxeNight, nights:1, subtotal:kurtaxeNight, adultTaxRate:adultTaxRate, childTaxRates:childTaxRates});
+  // city tax: per room position with its own guests, so the offer can
+  // present accommodation and tax grouped per room
+  function buildTaxSegments(adultsCount, childCounts){
+    var segs = [];
+    for(var t=0;t<nights;t++){
+      var tDate = addDays(checkIn, t);
+      var taxPeriod = getTaxPeriodForDate(tDate);
+      if(!taxPeriod) missingTax = true;
+      var adultTaxRate = taxPeriod ? (STATE.data.cityTax[taxPeriod.id].adult || 0) : 0;
+      var childTaxRates = STATE.data.childCategories.map(function(cat){
+        return taxPeriod ? (STATE.data.cityTax[taxPeriod.id][cat.kurtaxeCategory] || 0) : 0;
+      });
+      var kurtaxeNight = adultsCount * adultTaxRate;
+      childTaxRates.forEach(function(r, idx){
+        if(childCounts[idx]>0) kurtaxeNight += childCounts[idx] * r;
+      });
+      var tpId = taxPeriod?taxPeriod.id:null;
+      var lastT = segs[segs.length-1];
+      if(lastT && lastT.kurtaxeNight===kurtaxeNight && lastT.taxPeriodId===tpId){
+        lastT.nights++; lastT.subtotal += kurtaxeNight;
+      } else {
+        segs.push({taxPeriodId:tpId, taxPeriodName:taxPeriod?taxPeriod.name:null, kurtaxeNight:kurtaxeNight, nights:1, subtotal:kurtaxeNight, adultTaxRate:adultTaxRate, childTaxRates:childTaxRates});
+      }
     }
+    return segs;
   }
+  roomItems.forEach(function(it){
+    it.taxSegments = buildTaxSegments(it.adults, it.children);
+    it.taxSubtotal = it.taxSegments.reduce(function(s,seg){return s+seg.subtotal;},0);
+  });
 
   var roomTotal = roomItems.reduce(function(s,it){return s+it.subtotal;},0);
-  var taxTotal = taxSegments.reduce(function(s,seg){return s+seg.subtotal;},0);
+  var taxTotal = roomItems.reduce(function(s,it){return s+it.taxSubtotal;},0);
 
   // discount applies to accommodation only, never to city tax
   var discountType = document.getElementById("o_discountType").value;
@@ -1846,7 +1861,6 @@ function computeOffer(){
     roomItems: roomItems,
     showImages: document.getElementById("o_showImages").checked,
     adults: totalAdults, children: totalChildCounts,
-    taxSegments: taxSegments,
     serviceItems: serviceItems, servicesTotal: servicesTotal,
     roomTotal: roomTotal, taxTotal: taxTotal,
     discountType: discountType, discountValue: discountValue,
@@ -1900,27 +1914,31 @@ function renderPreview(offer){
   var disc = offer.discountAmount || 0;
   var discHidden = disc>0 && !offer.discountShow;
 
-  // flatten all room positions into one display list (labels carry room+rate)
-  var displaySegments = [];
-  items.forEach(function(it, i){
-    it.segments.forEach(function(seg){
-      displaySegments.push({
-        label: (itemRooms[i]?itemRooms[i].name[lang]:"") + ", " + (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):""),
-        nights: seg.nights,
-        perNight: seg.roomPrice+seg.childrenPrice,
-        subtotal: seg.subtotal
-      });
+  function nightsLabel(n){ return n+' '+(n===1 ? L.night : L.nights); }
+  function personsLabel(n){ return n+' '+(n===1 ? L.person : L.persons); }
+
+  var multi = items.length>1;
+
+  // per-item display segments; hidden discounts are spread across ALL
+  // accommodation segments so displayed prices still add up to the total
+  var flatSegs = [];
+  var itemSegs = items.map(function(it, i){
+    return it.segments.map(function(seg){
+      var label = multi
+        ? (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"")
+        : (itemRooms[i]?itemRooms[i].name[lang]:"") + ", " + (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"");
+      var o = { label: label, nights: seg.nights, perNight: seg.roomPrice+seg.childrenPrice, subtotal: seg.subtotal };
+      flatSegs.push(o);
+      return o;
     });
   });
-  // when the discount is not disclosed, spread it across the room segments
-  // so the displayed prices already include it and still add up to the total
   if(discHidden && offer.roomTotal>0){
     var target = Math.round((offer.roomTotal - disc)*100)/100;
     var factor = target / offer.roomTotal;
     var acc = 0;
-    displaySegments.forEach(function(seg, i){
+    flatSegs.forEach(function(seg, i){
       var sub;
-      if(i === displaySegments.length-1){
+      if(i === flatSegs.length-1){
         sub = Math.round((target - acc)*100)/100;
       } else {
         sub = Math.round(seg.subtotal*factor*100)/100;
@@ -1931,12 +1949,43 @@ function renderPreview(offer){
     });
   }
 
-  function nightsLabel(n){ return n+' '+(n===1 ? L.night : L.nights); }
-  function personsLabel(n){ return n+' '+(n===1 ? L.person : L.persons); }
+  function taxRowsFor(adultsCount, childCounts, segs){
+    var rows = "";
+    (segs||[]).forEach(function(seg){
+      var periodSuffix = seg.taxPeriodName?(" ("+seg.taxPeriodName+")"):"";
+      if(seg.adultTaxRate!==undefined){
+        if(adultsCount>0){
+          rows += '<tr><td>'+L.taxLine+' – '+L.adults+periodSuffix+
+            '<div class="field-note">'+personsLabel(adultsCount)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(seg.adultTaxRate)+'</div></td>'+
+            '<td class="num">'+fmtMoney(adultsCount*seg.adultTaxRate*seg.nights)+'</td></tr>';
+        }
+        STATE.data.childCategories.forEach(function(cat, idx){
+          var c = childCounts[idx]||0;
+          var r = (seg.childTaxRates||[])[idx]||0;
+          if(c>0){
+            rows += '<tr><td>'+L.taxLine+' – '+(cat.name[lang]||cat.name.de)+periodSuffix+
+              '<div class="field-note">'+personsLabel(c)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(r)+'</div></td>'+
+              '<td class="num">'+fmtMoney(c*r*seg.nights)+'</td></tr>';
+          }
+        });
+      } else {
+        // archived offers from older versions only carry the nightly sum
+        rows += '<tr><td>'+nightsLabel(seg.nights)+' – '+L.taxLine+periodSuffix+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+      }
+    });
+    return rows;
+  }
 
   var priceRows = "";
-  displaySegments.forEach(function(seg){
-    priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+seg.label+'<div class="field-note">'+fmtMoney(seg.perNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+  items.forEach(function(it, i){
+    if(multi){
+      priceRows += '<tr class="roomhead"><td colspan="2">'+L.roomLine+' '+(i+1)+' – '+(itemRooms[i]?itemRooms[i].name[lang]:"")+'</td></tr>';
+    }
+    itemSegs[i].forEach(function(seg){
+      priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+seg.label+'<div class="field-note">'+fmtMoney(seg.perNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
+    });
+    // legacy offers store tax at offer level; new ones per room item
+    priceRows += taxRowsFor(it.adults||0, it.children||[], it.taxSegments || (!multi ? offer.taxSegments : []));
   });
   if(disc>0 && offer.discountShow){
     var discLabel = L.discount;
@@ -1949,30 +1998,6 @@ function renderPreview(offer){
       ? fmtMoney(it.price)+' '+L.perNight+' × '+nightsLabel(offer.nights)
       : fmtMoney(it.price)+' '+L.once;
     priceRows += '<tr><td>'+it.qty+' × '+nm+'<div class="field-note">'+note+'</div></td><td class="num">'+fmtMoney(it.total)+'</td></tr>';
-  });
-  offer.taxSegments.forEach(function(seg){
-    var periodSuffix = seg.taxPeriodName?(" ("+seg.taxPeriodName+")"):"";
-    if(seg.adultTaxRate!==undefined){
-      // per-person breakdown
-      if(offer.adults>0){
-        priceRows += '<tr><td>'+L.taxLine+' – '+L.adults+periodSuffix+
-          '<div class="field-note">'+personsLabel(offer.adults)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(seg.adultTaxRate)+'</div></td>'+
-          '<td class="num">'+fmtMoney(offer.adults*seg.adultTaxRate*seg.nights)+'</td></tr>';
-      }
-      STATE.data.childCategories.forEach(function(cat, idx){
-        var c = offer.children[idx]||0;
-        var r = (seg.childTaxRates||[])[idx]||0;
-        if(c>0){
-          priceRows += '<tr><td>'+L.taxLine+' – '+(cat.name[lang]||cat.name.de)+periodSuffix+
-            '<div class="field-note">'+personsLabel(c)+' × '+nightsLabel(seg.nights)+' × '+fmtMoney(r)+'</div></td>'+
-            '<td class="num">'+fmtMoney(c*r*seg.nights)+'</td></tr>';
-        }
-      });
-    } else {
-      // archived offers from older versions only carry the nightly sum
-      var label = L.taxLine + periodSuffix;
-      priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+label+'<div class="field-note">'+fmtMoney(seg.kurtaxeNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
-    }
   });
 
   var warnBlock = "";
