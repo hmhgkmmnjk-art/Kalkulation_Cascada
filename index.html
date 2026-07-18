@@ -241,10 +241,13 @@ table.pricetable tr.roomhead:not(:first-child) td{border-top:10px solid var(--wh
 .doc-footer .bank b{color:var(--navy);display:block;font-size:11.5px;}
 .greeting{white-space:pre-line;margin-top:10px;font-size:13.5px;}
 
+/* zero page margins suppress the browser's own print header/footer
+   (URL, date); the offer keeps its margins via padding instead */
+@page{size:A4;margin:0;}
 @media print{
   body *{visibility:hidden;}
   #offerPreview,#offerPreview *{visibility:visible;}
-  #offerPreview{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:none;padding:0;max-width:none;}
+  #offerPreview{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:none;padding:14mm 15mm;max-width:none;}
   header.topbar,nav.tabbar,.no-print{display:none!important;}
   body{padding:0;background:#fff;}
 }
