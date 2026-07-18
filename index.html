@@ -464,24 +464,10 @@ table.pricetable tr.roomhead:not(:first-child) td{border-top:10px solid var(--wh
       <h3>Zusatzleistungen</h3>
       <div id="o_services"></div>
 
-      <h3>Rabatt (optional)</h3>
-      <div class="row2">
-        <div>
-          <label>Rabatt-Art</label>
-          <select id="o_discountType">
-            <option value="none">Kein Rabatt</option>
-            <option value="percent">Prozent (%)</option>
-            <option value="fixed">Fester Betrag (€)</option>
-          </select>
-        </div>
-        <div id="o_discountValueWrap">
-          <label>Wert</label>
-          <input type="number" id="o_discountValue" min="0" step="0.01" value="0">
-        </div>
-      </div>
-      <div id="o_discountOptions">
+      <div id="o_discountOptions" style="display:none;">
+        <h3>Rabatt-Darstellung</h3>
         <label class="check-row"><input type="checkbox" id="o_discountShow" checked> Rabatt im Angebot ausweisen</label>
-        <p class="hint">Ausgewiesen: Der Rabatt erscheint als eigene Zeile im Angebot. Nicht ausgewiesen: Die Zimmerpreise werden im Angebot entsprechend reduziert dargestellt, ohne den Rabatt zu nennen. Der Rabatt gilt für die Übernachtungspreise, nicht für die Kurtaxe.</p>
+        <p class="hint">Ausgewiesen: Der Rabatt erscheint als eigene Zeile im jeweiligen Zimmerblock. Nicht ausgewiesen: Die Zimmerpreise werden entsprechend reduziert dargestellt, ohne den Rabatt zu nennen. Rabatte gelten nur für die Übernachtungspreise, nie für die Kurtaxe.</p>
       </div>
 
       <button class="btn btn-primary" id="btnCalcOffer">Angebot berechnen &amp; Vorschau anzeigen</button>
@@ -1532,7 +1518,9 @@ function newOfferRoom(){
     roomId: STATE.data.rooms.length ? STATE.data.rooms[0].id : "",
     rateId: STATE.data.rates.length ? STATE.data.rates[0].id : "",
     adults: 2,
-    children: STATE.data.childCategories.map(function(){ return 0; })
+    children: STATE.data.childCategories.map(function(){ return 0; }),
+    discountType: "none",
+    discountValue: 0
   };
 }
 var offerRooms = [];
@@ -1647,6 +1635,31 @@ function renderOfferRoomsList(){
         function(v){or.children[ci]=v; validateOfferRoom(or, warnEl);},
         0, 6));
     });
+
+    // per-room discount (accommodation only, never city tax)
+    var discRow = document.createElement("div");
+    discRow.className = "row2";
+    var dtDiv = document.createElement("div");
+    var dtLab = document.createElement("label"); dtLab.textContent = "Rabatt";
+    var dtSel = document.createElement("select");
+    dtSel.innerHTML = '<option value="none">Kein Rabatt</option><option value="percent">Prozent (%)</option><option value="fixed">Fester Betrag (€)</option>';
+    dtSel.value = or.discountType || "none";
+    dtDiv.appendChild(dtLab); dtDiv.appendChild(dtSel);
+    var dvDiv = document.createElement("div");
+    var dvLab = document.createElement("label"); dvLab.textContent = "Wert";
+    var dvInp = document.createElement("input");
+    dvInp.type = "number"; dvInp.min = "0"; dvInp.step = "0.01"; dvInp.value = or.discountValue || 0;
+    dvDiv.appendChild(dvLab); dvDiv.appendChild(dvInp);
+    dvDiv.style.display = (or.discountType && or.discountType!=="none") ? "block" : "none";
+    dtSel.addEventListener("change", function(){
+      or.discountType = this.value;
+      dvDiv.style.display = this.value!=="none" ? "block" : "none";
+      updateDiscountSectionVisibility();
+    });
+    dvInp.addEventListener("input", function(){ or.discountValue = parseFloat(this.value)||0; });
+    discRow.appendChild(dtDiv); discRow.appendChild(dvDiv);
+    box.appendChild(discRow);
+
     box.appendChild(noteEl);
     box.appendChild(warnEl);
 
@@ -1670,6 +1683,7 @@ function renderOfferRoomsList(){
     wrap.appendChild(box);
   });
   updateImagesRowVisibility();
+  updateDiscountSectionVisibility();
 }
 
 function validateOfferRoom(or, warnEl){
@@ -1722,13 +1736,10 @@ function updateNightsDisplay(){
 document.getElementById("o_checkin").addEventListener("change", updateNightsDisplay);
 document.getElementById("o_checkout").addEventListener("change", updateNightsDisplay);
 
-function updateDiscountVisibility(){
-  var none = document.getElementById("o_discountType").value === "none";
-  document.getElementById("o_discountValueWrap").style.display = none ? "none" : "block";
-  document.getElementById("o_discountOptions").style.display = none ? "none" : "block";
+function updateDiscountSectionVisibility(){
+  var any = offerRooms.some(function(or){ return or.discountType && or.discountType!=="none"; });
+  document.getElementById("o_discountOptions").style.display = any ? "block" : "none";
 }
-document.getElementById("o_discountType").addEventListener("change", updateDiscountVisibility);
-updateDiscountVisibility();
 
 /* ---------- CORE PRICE CALCULATION ---------- */
 function computeOffer(){
@@ -1822,15 +1833,24 @@ function computeOffer(){
   var roomTotal = roomItems.reduce(function(s,it){return s+it.subtotal;},0);
   var taxTotal = roomItems.reduce(function(s,it){return s+it.taxSubtotal;},0);
 
-  // discount applies to accommodation only, never to city tax
-  var discountType = document.getElementById("o_discountType").value;
-  var discountValue = parseFloat(document.getElementById("o_discountValue").value)||0;
+  // per-room discount, applied to that room's accommodation only, never city tax
   var discountShow = document.getElementById("o_discountShow").checked;
   var discountAmount = 0;
-  if(discountValue>0){
-    if(discountType==="percent") discountAmount = roomTotal * Math.min(discountValue,100)/100;
-    else if(discountType==="fixed") discountAmount = Math.min(discountValue, roomTotal);
-  }
+  roomItems.forEach(function(it, i){
+    var or = offerRooms[i];
+    var dType = or.discountType || "none";
+    var dVal = parseFloat(or.discountValue)||0;
+    var dAmt = 0;
+    if(dVal>0){
+      if(dType==="percent") dAmt = it.subtotal * Math.min(dVal,100)/100;
+      else if(dType==="fixed") dAmt = Math.min(dVal, it.subtotal);
+    }
+    dAmt = Math.round(dAmt*100)/100;
+    it.discountType = dType;
+    it.discountValue = dVal;
+    it.discountAmount = dAmt;
+    discountAmount += dAmt;
+  });
   discountAmount = Math.round(discountAmount*100)/100;
 
   // optional services (parking, transfer, ...), snapshotted into the offer
@@ -1863,7 +1883,6 @@ function computeOffer(){
     adults: totalAdults, children: totalChildCounts,
     serviceItems: serviceItems, servicesTotal: servicesTotal,
     roomTotal: roomTotal, taxTotal: taxTotal,
-    discountType: discountType, discountValue: discountValue,
     discountAmount: discountAmount, discountShow: discountShow,
     grandTotal: grandTotal,
     missingSeason: missingSeason, missingTax: missingTax,
@@ -1932,13 +1951,16 @@ function renderPreview(offer){
       return o;
     });
   });
-  if(discHidden && offer.roomTotal>0){
-    var target = Math.round((offer.roomTotal - disc)*100)/100;
-    var factor = target / offer.roomTotal;
+  var hasItemDisc = items.some(function(it){ return it.discountAmount!==undefined; });
+  function spreadDiscount(segs, dAmt){
+    var gross = segs.reduce(function(s,x){return s+x.subtotal;},0);
+    if(gross<=0 || dAmt<=0) return;
+    var target = Math.round((gross - dAmt)*100)/100;
+    var factor = target / gross;
     var acc = 0;
-    flatSegs.forEach(function(seg, i){
+    segs.forEach(function(seg, i){
       var sub;
-      if(i === flatSegs.length-1){
+      if(i === segs.length-1){
         sub = Math.round((target - acc)*100)/100;
       } else {
         sub = Math.round(seg.subtotal*factor*100)/100;
@@ -1947,6 +1969,15 @@ function renderPreview(offer){
       seg.subtotal = sub;
       seg.perNight = sub / seg.nights;
     });
+  }
+  if(discHidden){
+    if(hasItemDisc){
+      // spread each room's own discount within that room's lines
+      items.forEach(function(it, i){ spreadDiscount(itemSegs[i], it.discountAmount||0); });
+    } else {
+      // legacy offers carry one global discount
+      spreadDiscount(flatSegs, disc);
+    }
   }
 
   function taxRowsFor(adultsCount, childCounts, segs){
@@ -1984,10 +2015,15 @@ function renderPreview(offer){
     itemSegs[i].forEach(function(seg){
       priceRows += '<tr><td>'+nightsLabel(seg.nights)+' – '+seg.label+'<div class="field-note">'+fmtMoney(seg.perNight)+' '+L.perNight+'</div></td><td class="num">'+fmtMoney(seg.subtotal)+'</td></tr>';
     });
+    if(hasItemDisc && offer.discountShow && (it.discountAmount||0)>0){
+      var dl = L.discount;
+      if(it.discountType==="percent") dl += ' ('+it.discountValue+' %)';
+      priceRows += '<tr><td><b>'+dl+'</b></td><td class="num">&minus;'+fmtMoney(it.discountAmount)+'</td></tr>';
+    }
     // legacy offers store tax at offer level; new ones per room item
     priceRows += taxRowsFor(it.adults||0, it.children||[], it.taxSegments || (!multi ? offer.taxSegments : []));
   });
-  if(disc>0 && offer.discountShow){
+  if(!hasItemDisc && disc>0 && offer.discountShow){
     var discLabel = L.discount;
     if(offer.discountType==="percent") discLabel += ' ('+offer.discountValue+' %)';
     priceRows += '<tr><td><b>'+discLabel+'</b></td><td class="num">&minus;'+fmtMoney(disc)+'</td></tr>';
