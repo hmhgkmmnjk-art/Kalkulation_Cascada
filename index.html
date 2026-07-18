@@ -627,14 +627,14 @@ function defaultData(){
       { id:"child3", name:{de:"Jugendliche",en:"Teenagers",hr:"Tinejdžeri"}, ageFrom:16, ageTo:17, priceType:"percent", priceValue:50, kurtaxeCategory:"child1217" }
     ],
     seasons:[
-      { id:"season1", name:"Vorsaison", from:"01-01", to:"06-27" },
-      { id:"season2", name:"Hauptsaison", from:"06-28", to:"08-29" },
-      { id:"season3", name:"Nachsaison", from:"08-30", to:"12-31" }
+      { id:"season1", name:{de:"Vorsaison", en:"Early Season", hr:"Predsezona"}, from:"01-01", to:"06-27" },
+      { id:"season2", name:{de:"Hauptsaison", en:"High Season", hr:"Glavna sezona"}, from:"06-28", to:"08-29" },
+      { id:"season3", name:{de:"Nachsaison", en:"Late Season", hr:"Posezona"}, from:"08-30", to:"12-31" }
     ],
     taxPeriods:[
-      { id:"tax1", name:"Zeitraum 1", from:"04-01", to:"06-30" },
-      { id:"tax2", name:"Zeitraum 2", from:"07-01", to:"08-31" },
-      { id:"tax3", name:"Zeitraum 3", from:"09-01", to:"10-31" }
+      { id:"tax1", name:{de:"Zeitraum 1", en:"Period 1", hr:"Razdoblje 1"}, from:"04-01", to:"06-30" },
+      { id:"tax2", name:{de:"Zeitraum 2", en:"Period 2", hr:"Razdoblje 2"}, from:"07-01", to:"08-31" },
+      { id:"tax3", name:{de:"Zeitraum 3", en:"Period 3", hr:"Razdoblje 3"}, from:"09-01", to:"10-31" }
     ],
     services:[
       { id:"svc1", name:{de:"Parkplatz", en:"Parking space", hr:"Parkirno mjesto"}, price:0, priceType:"perNight", deleted:false },
@@ -752,8 +752,29 @@ function idbSet(value, cb){
   }catch(e){ if(cb) cb(e); }
 }
 
+// older versions stored season/tax period names as plain strings; convert to
+// multilingual objects. Unchanged default names are dropped so the translated
+// defaults fill in; custom names are copied into every language.
+function migrateLegacyNames(data){
+  if(!data) return;
+  var defs = defaultData();
+  ["seasons","taxPeriods"].forEach(function(key){
+    (data[key]||[]).forEach(function(item){
+      if(item && typeof item.name === "string"){
+        var def = defs[key].find(function(d){ return d.id===item.id; });
+        if(def && def.name.de === item.name){
+          delete item.name;
+        } else {
+          item.name = {de:item.name, en:item.name, hr:item.name};
+        }
+      }
+    });
+  });
+}
+
 function applyParsedState(parsed){
   var def = defaultData();
+  migrateLegacyNames(parsed && parsed.data);
   var mergedData = deepMerge(def, (parsed && parsed.data) || {});
   migrateSeasonDates(mergedData);
   ensurePriceSkeleton(mergedData);
@@ -1275,26 +1296,41 @@ function renderChildCatFields(){
   });
 }
 
+function buildPeriodBox(item, rowClass, onChanged){
+  var box = document.createElement("div");
+  box.className = rowClass;
+  box.style.cssText = "border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:10px;background:#fbfaf6;";
+  var nameRow = document.createElement("div");
+  nameRow.className = "row3";
+  LANGS.forEach(function(l){
+    var d = document.createElement("div");
+    var lab = document.createElement("label"); lab.className = "first"; lab.textContent = "Name ("+l.toUpperCase()+")";
+    var inp = document.createElement("input"); inp.type = "text"; inp.value = item.name[l]||"";
+    inp.addEventListener("input", function(){ item.name[l] = this.value; saveState(); if(l==="de") onChanged(); });
+    d.appendChild(lab); d.appendChild(inp);
+    nameRow.appendChild(d);
+  });
+  box.appendChild(nameRow);
+  var dateRow = document.createElement("div");
+  dateRow.className = "row2";
+  dateRow.innerHTML =
+    '<div><label>Von</label><input type="date" data-f="from"></div>'+
+    '<div><label>Bis</label><input type="date" data-f="to"></div>';
+  var fromInp = dateRow.querySelector('[data-f=from]');
+  var toInp = dateRow.querySelector('[data-f=to]');
+  fromInp.value = CUR_YEAR+"-"+item.from;
+  toInp.value = CUR_YEAR+"-"+item.to;
+  fromInp.addEventListener("input", function(){ item.from = this.value.slice(5); saveState(); onChanged(); });
+  toInp.addEventListener("input", function(){ item.to = this.value.slice(5); saveState(); onChanged(); });
+  box.appendChild(dateRow);
+  return box;
+}
+
 function renderSeasonFields(){
   var wrap = document.getElementById("seasonFields");
   wrap.querySelectorAll(".season-row").forEach(function(e){e.remove();});
   STATE.data.seasons.forEach(function(season){
-    var row = document.createElement("div");
-    row.className = "season-row row3";
-    row.innerHTML =
-      '<div><label class="first">Name</label><input type="text" data-f="name"></div>'+
-      '<div><label class="first">Von</label><input type="date" data-f="from"></div>'+
-      '<div><label class="first">Bis</label><input type="date" data-f="to"></div>';
-    var nameInp = row.querySelector('[data-f=name]');
-    var fromInp = row.querySelector('[data-f=from]');
-    var toInp = row.querySelector('[data-f=to]');
-    nameInp.value = season.name;
-    fromInp.value = CUR_YEAR+"-"+season.from;
-    toInp.value = CUR_YEAR+"-"+season.to;
-    nameInp.addEventListener("input", function(){ season.name=this.value; saveState(); refreshOfferSelectors(); renderRoomPriceFields(); });
-    fromInp.addEventListener("input", function(){ season.from=this.value.slice(5); saveState(); renderRoomPriceFields(); });
-    toInp.addEventListener("input", function(){ season.to=this.value.slice(5); saveState(); renderRoomPriceFields(); });
-    wrap.appendChild(row);
+    wrap.appendChild(buildPeriodBox(season, "season-row", renderRoomPriceFields));
   });
 }
 
@@ -1302,22 +1338,7 @@ function renderTaxPeriodFields(){
   var wrap = document.getElementById("taxPeriodFields");
   wrap.querySelectorAll(".tax-row").forEach(function(e){e.remove();});
   STATE.data.taxPeriods.forEach(function(p){
-    var row = document.createElement("div");
-    row.className = "tax-row row3";
-    row.innerHTML =
-      '<div><label class="first">Name</label><input type="text" data-f="name"></div>'+
-      '<div><label class="first">Von</label><input type="date" data-f="from"></div>'+
-      '<div><label class="first">Bis</label><input type="date" data-f="to"></div>';
-    var nameInp = row.querySelector('[data-f=name]');
-    var fromInp = row.querySelector('[data-f=from]');
-    var toInp = row.querySelector('[data-f=to]');
-    nameInp.value = p.name;
-    fromInp.value = CUR_YEAR+"-"+p.from;
-    toInp.value = CUR_YEAR+"-"+p.to;
-    nameInp.addEventListener("input", function(){ p.name=this.value; saveState(); renderCityTaxFields(); });
-    fromInp.addEventListener("input", function(){ p.from=this.value.slice(5); saveState(); renderCityTaxFields(); });
-    toInp.addEventListener("input", function(){ p.to=this.value.slice(5); saveState(); renderCityTaxFields(); });
-    wrap.appendChild(row);
+    wrap.appendChild(buildPeriodBox(p, "tax-row", renderCityTaxFields));
   });
 }
 
@@ -1326,7 +1347,7 @@ function renderRoomPriceFields(){
   wrap.innerHTML = "";
   STATE.data.seasons.forEach(function(season){
     var h = document.createElement("h3");
-    h.textContent = season.name + " (" + season.from.split("-").reverse().join(".") + " – " + season.to.split("-").reverse().join(".") + ")";
+    h.textContent = (season.name.de||"") + " (" + season.from.split("-").reverse().join(".") + " – " + season.to.split("-").reverse().join(".") + ")";
     wrap.appendChild(h);
     var scroll = document.createElement("div");
     scroll.className = "matrix-scroll";
@@ -1367,7 +1388,7 @@ function renderCityTaxFields(){
   table.className = "matrix";
   var thead = "<tr><th>Zeitraum</th><th>Erwachsene</th><th>Kind &lt;12 J.</th><th>Kind 12–17 J.</th></tr>";
   var rows = STATE.data.taxPeriods.map(function(p){
-    return '<tr><td class="rowhead">'+p.name+' ('+p.from.split("-").reverse().join(".")+' – '+p.to.split("-").reverse().join(".")+')</td>'+
+    return '<tr><td class="rowhead">'+(p.name.de||"")+' ('+p.from.split("-").reverse().join(".")+' – '+p.to.split("-").reverse().join(".")+')</td>'+
       '<td><input type="number" min="0" step="0.01" data-p="'+p.id+'" data-k="adult" value="'+STATE.data.cityTax[p.id].adult+'"></td>'+
       '<td><input type="number" min="0" step="0.01" data-p="'+p.id+'" data-k="child12" value="'+STATE.data.cityTax[p.id].child12+'"></td>'+
       '<td><input type="number" min="0" step="0.01" data-p="'+p.id+'" data-k="child1217" value="'+STATE.data.cityTax[p.id].child1217+'"></td></tr>';
@@ -1493,10 +1514,7 @@ document.getElementById("importInput").addEventListener("change", function(e){
     try{
       var parsed = JSON.parse(reader.result);
       if(!parsed || typeof parsed!=="object") throw new Error("Ungültiges Format");
-      var def = defaultData();
-      var mergedData = deepMerge(def, parsed.data || {});
-      ensurePriceSkeleton(mergedData);
-      STATE = { data: mergedData, offers: Array.isArray(parsed.offers)?parsed.offers:[] };
+      applyParsedState(parsed);
       saveState();
       renderAll();
       var imgCount = STATE.data.rooms.reduce(function(s,r){ return s + (Array.isArray(r.images)?r.images.length:0); },0);
@@ -1940,6 +1958,9 @@ function renderPreview(offer){
 
   function nightsLabel(n){ return n+' '+(n===1 ? L.night : L.nights); }
   function personsLabel(n){ return n+' '+(n===1 ? L.person : L.persons); }
+  // season/tax period names are multilingual objects; archived offers from
+  // older versions still carry plain strings
+  function locName(n){ return n ? (typeof n==="object" ? (n[lang]||n.de||"") : n) : ""; }
 
   var multi = items.length>1;
 
@@ -1949,8 +1970,8 @@ function renderPreview(offer){
   var itemSegs = items.map(function(it, i){
     return it.segments.map(function(seg){
       var label = multi
-        ? (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"")
-        : (itemRooms[i]?itemRooms[i].name[lang]:"") + ", " + (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+seg.seasonName+")"):"");
+        ? (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+locName(seg.seasonName)+")"):"")
+        : (itemRooms[i]?itemRooms[i].name[lang]:"") + ", " + (itemRates[i]?itemRates[i].name[lang]:"") + (seg.seasonName?(" ("+locName(seg.seasonName)+")"):"");
       var o = { label: label, nights: seg.nights, perNight: seg.roomPrice+seg.childrenPrice, subtotal: seg.subtotal };
       flatSegs.push(o);
       return o;
@@ -1988,7 +2009,7 @@ function renderPreview(offer){
   function taxRowsFor(adultsCount, childCounts, segs){
     var rows = "";
     (segs||[]).forEach(function(seg){
-      var periodSuffix = seg.taxPeriodName?(" ("+seg.taxPeriodName+")"):"";
+      var periodSuffix = seg.taxPeriodName?(" ("+locName(seg.taxPeriodName)+")"):"";
       if(seg.adultTaxRate!==undefined){
         if(adultsCount>0){
           rows += '<tr><td>'+L.taxLine+' – '+L.adults+periodSuffix+
