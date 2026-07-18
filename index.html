@@ -1499,7 +1499,12 @@ document.getElementById("importInput").addEventListener("change", function(e){
       STATE = { data: mergedData, offers: Array.isArray(parsed.offers)?parsed.offers:[] };
       saveState();
       renderAll();
-      document.getElementById("importMsg").innerHTML = '<div class="notice">Import erfolgreich.</div>';
+      var imgCount = STATE.data.rooms.reduce(function(s,r){ return s + (Array.isArray(r.images)?r.images.length:0); },0);
+      var amenCount = STATE.data.rooms.filter(function(r){ return (r.amenities.de||r.amenities.en||r.amenities.hr); }).length;
+      document.getElementById("importMsg").innerHTML = '<div class="notice">Import erfolgreich: '+
+        STATE.data.rooms.length+' Zimmer ('+amenCount+' mit Beschreibung), '+
+        imgCount+' Zimmerbilder, Logo: '+(STATE.data.hotel.logo?'ja':'nein')+', '+
+        STATE.offers.length+' archivierte Angebote.</div>';
     }catch(err){
       document.getElementById("importMsg").innerHTML = '<div class="warn">Import fehlgeschlagen: '+err.message+'</div>';
     }
