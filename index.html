@@ -875,9 +875,7 @@ function formatDisplayDate(dateStr, lang){
   var d = new Date(dateStr+"T00:00:00");
   var dd = String(d.getDate()).padStart(2,"0");
   var mm = String(d.getMonth()+1).padStart(2,"0");
-  var yyyy = d.getFullYear();
-  if(lang==="en") return mm+"/"+dd+"/"+yyyy;
-  return dd+"."+mm+"."+yyyy;
+  return dd+"/"+mm+"/"+d.getFullYear();
 }
 function findById(arr,id){ return arr.find(function(x){return x.id===id;}); }
 
