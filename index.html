@@ -2079,28 +2079,23 @@ function renderPreview(offer){
     '<div class="guest-grid">'+guestRows+'</div>'+
   '</div>'+
   (function(){
-    // amenities per distinct room
+    // one block per distinct room: amenities text plus that room's photos
     var seen = {}, blocks = "";
     items.forEach(function(it, i){
       var r = itemRooms[i];
       if(!r || seen[r.id]) return;
       seen[r.id] = true;
       var am = r.amenities[lang]||"";
-      if(!am) return;
-      blocks += (items.length>1 ? '<p><b>'+r.name[lang]+':</b><br>' : '<p>')+am.replace(/\n/g,"<br>")+'</p>';
+      var imgs = (offer.showImages===true && Array.isArray(r.images)) ? r.images : [];
+      if(!am && !imgs.length) return;
+      var heading = multi ? r.name[lang] : L.amenities;
+      blocks += '<div class="doc-block">'+
+        '<h4>'+heading+'</h4>'+
+        (am ? '<p>'+am.replace(/\n/g,"<br>")+'</p>' : '')+
+        (imgs.length ? '<div class="doc-images">'+imgs.map(function(src){ return '<img src="'+src+'" alt="">'; }).join('')+'</div>' : '')+
+      '</div>';
     });
-    return blocks ? '<div class="doc-block"><h4>'+L.amenities+'</h4>'+blocks+'</div>' : '';
-  })()+
-  (function(){
-    if(offer.showImages!==true) return '';
-    var seen = {}, imgs = [];
-    items.forEach(function(it, i){
-      var r = itemRooms[i];
-      if(!r || seen[r.id]) return;
-      seen[r.id] = true;
-      (r.images||[]).forEach(function(src){ imgs.push(src); });
-    });
-    return imgs.length ? '<div class="doc-block doc-images">'+imgs.map(function(src){ return '<img src="'+src+'" alt="">'; }).join('')+'</div>' : '';
+    return blocks;
   })()+
   (itemRates.some(function(r){ return r && r.halfBoard; }) ? '<div class="doc-block"><h4>'+L.halfBoard+'</h4><p>'+txt.hpDescription+'</p></div>' : '')+
   '<div class="doc-block">'+
